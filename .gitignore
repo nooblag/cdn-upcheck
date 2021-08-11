@@ -1,0 +1,6 @@
+# don't publish configs
+.conf/
+
+# don't sync data storage
+.data/
+
