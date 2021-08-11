@@ -469,6 +469,7 @@ else
 	# .build not yet known, so find out
 	# get the modification date and time using `date --reference` of this script's name, i.e. $0, and write that to a file
 	date --reference="${0}" ${timestamp_format} > "${wd}/.build"
+	chmod 600 "${wd}/.build"
 	current_build="$( < "${wd}/.build")"
 	printf 'Using new build: %s\n\n' "${current_build}"
 fi
