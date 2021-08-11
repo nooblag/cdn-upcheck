@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## 3.0.3 - 2021/08/12
+ * improve `if` conditions formatting throughout
+ * determine and use dynamic paths for `${wd}` rather than hardcoding
+ * improve quoting throughout
+
+---
+
 ## 3.0.2 - 2021/08/11
  * improve build checking and move data store to working directory rather than data directory
  * improve usage of timestamps throughout
@@ -33,7 +40,7 @@
 ---
 
 ## 2.1.2 - 2021/07/25
- * fix bug in `ack` line with new vars where regex fails with variables, replace with shell expansion of `${cdn_url##*//}` instead, where *// means everything after the first //
+ * fix bug in `ack` line with new vars where regex fails with variables, replace with shell expansion of `${cdn_url##*//}` instead, where `*//` means everything after the first //
 
 ---
 
