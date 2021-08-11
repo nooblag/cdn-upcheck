@@ -63,7 +63,7 @@
 	start=$(date +%s)
 
 	# set current hour (I) minute (M) second (S) timestamp to append to txt files to make them unique
-	# e.g. .230654-mp4-matches
+	# e.g. .210812010001-mp4-matches
 	timestamp_format='+%g%m%d%H%M%S'
 	timestamp=$(date ${timestamp_format})
 
@@ -72,8 +72,8 @@
 	time='+%l:%M:%S'
 
 	# set time interval in minutes for when database refresh should happen, also used for garbage collection
-	# e.g. refresh database and clear old temporary files every 360 minutes (6hrs)
-	refreshtime=360
+	# e.g. refresh database and clear old temporary files after 12 hours, 5 minutes
+	refreshtime=725
 
 	# set up check stream status notification formatting, also used in email notifications
 	  ok='[ OK ]'
@@ -306,8 +306,8 @@ extractmetadata_engine(){
 extractmetadata() {
 	# first ensure we have a clean slate!
 	rm --force "${wd}/${data}/.identifier-*"
-	rm --force "${wd}/${data}/.mp4*"
-	rm --force "${wd}/${data}/.xml-urls"
+	rm --force "${wd}/${data}/.mp4-*"
+	rm --force "${wd}/${data}/.xml-*"
 
 	# run `ack` on the database dump to extract all references to content hosted at cdn.cmsdomain.com with or without HTTPS
 	printf 'Extracting CDN filenames... '
@@ -399,9 +399,11 @@ cleanup(){
 	printf '\nCleaning up... '
 		# clean up this session's temporary files
 		find "${wd}/${data}" -maxdepth 1 -name ".${timestamp}*" -type f -delete
-		# also clear temporary files that have not been accessed for more than x minutes
+		# also clear temporary files that have not been accessed for more than twice our last refresh time (x minutes)
 		# this handles cleanup in situations where cron is disrupted or a prior script aborts or fails for whatever reason
-		find "${wd}/${data}" -maxdepth 1 -name ".??????-*" -amin +${refreshtime} -type f -delete
+		# timestamp is 12 chars long, hence 12 ?s to capture all past rollouts, and we double refresh time so as to leave last refresh time's data still intact for now
+		double_refreshtime="$((refreshtime * 2))"
+		find "${wd}/${data}" -maxdepth 1 -name ".????????????-*" -amin +${double_refreshtime} -type f -delete
 	printf 'done.\n'
 }
 
@@ -559,7 +561,7 @@ printf 'done.\n'
 starttime="$(date '+%l:%M:%S %P.')"
 # remove leading space from the date output using parameter expansion (https://wiki.bash-hackers.org/syntax/pe)
 removeleadingspace="${starttime%%[^[:blank:]]*}"
-starttime="${starttime#${removeleadingspace}}"
+starttime="${starttime#"${removeleadingspace}"}"
 printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 
 
@@ -1095,7 +1097,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 
 
 # now cleanup temporary files, run the function for it
-##cleanup
+cleanup
 
 printf "\n\n\nChecking CDN uploads completed.\n"
 

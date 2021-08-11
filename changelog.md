@@ -4,6 +4,10 @@
  * improve build checking and move data store to working directory rather than data directory
  * improve usage of timestamps throughout
  * modify changelog formatting of versions
+ * updated some comments throughout
+ * extend `$refreshtime` to 725 minutes (12 hours, 5 minutes) instead of every 6 hours
+ * improved garbage collection and re-enabled
+ * improve ensuring the clean slate in `extractmetadata()`
 
 ---
 
