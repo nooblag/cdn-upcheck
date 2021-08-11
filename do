@@ -452,22 +452,22 @@ printf "Checking CDN uploads.\n\n"
 
 
 # find the "build date and time" of this file and if it's been changed since we last know, notify user
-if [[ -s "${wd}/${data}/.build" ]]; then
+if [[ -s "${wd}/.build" ]]; then
 	# the .build storage file exists and it's not empty so assume it's useful
-	last_build_date="$( < "${wd}/${data}/.build")"
+	last_build_date="$( < "${wd}/.build")"
 	current_build="$(date --reference="${0}" ${timestamp_format})"
 	# test if build date and time has changed
 	if test "${last_build_date}" != "${current_build}"; then
 		# build has changed since script last run, notify user about using this last new build
 		printf 'Using new build: %s\n\n' "${current_build}"
 		# update .build file
-		date --reference="${0}" > "${wd}/${data}/.build"
+		date --reference="${0}" > "${wd}/.build"
 	fi
 else
 	# .build not yet known, so find out
 	# get the modification date and time using `date --reference` of this script's name, i.e. $0, and write that to a file
-	date --reference="${0}" ${timestamp_format} > "${wd}/${data}/.build"
-	current_build="$( < "${wd}/${data}/.build")"
+	date --reference="${0}" ${timestamp_format} > "${wd}/.build"
+	current_build="$( < "${wd}/.build")"
 	printf 'Using new build: %s\n\n' "${current_build}"
 fi
 

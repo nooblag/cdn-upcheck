@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## 3.0.2 - 2021/08/11
+ * improve build checking and move data store to working directory rather than data directory
+ * improve usage of timestamps throughout
+
+---
+
 ## 3.0.1 - 2021/08/11
  * add facility to check last build date and notify the user about changes at runtime
  * replace `echo` with `printf` line at start
