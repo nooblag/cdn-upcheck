@@ -3,6 +3,7 @@
 ## 3.0.2 - 2021/08/11
  * improve build checking and move data store to working directory rather than data directory
  * improve usage of timestamps throughout
+ * modify changelog formatting of versions
 
 ---
 
@@ -41,7 +42,7 @@
 
 ---
 
-## 2.1.0 - 2021/07/24
+## 2.1 - 2021/07/24
  * add `$cdn_origin_domain` and `$cdn_origin_domain` to config params
  * refactor `buildCDNrefreshlist()` to use above params
  * improve `$timestamp` to include full date, not just time
@@ -149,12 +150,12 @@
 
 ---
 
-## 1.36.0 - 2021/04/27
+## 1.36 - 2021/04/27
  * add a `trap` that runs on aborts or exits so that garbage collection of current temp files from this check (timestamped files) always runs and that file locks are handled/checked
 
 ---
 
-## 1.35.0 - 2021/04/27
+## 1.35 - 2021/04/27
  * introduce file lock when extracting metadata for the first time, as when the process takes longer than 30 minutes, we run into problems with the next cron starting with incomplete data (lists are still being generated)
 
 ---
@@ -196,12 +197,12 @@
 
 ---
 
-## 1.34.0 - 2021/04/25
+## 1.34 - 2021/04/25
  * overhaul checking to confirm the existence of MP4 files, not just confirming the metadata. this covers edge cases where an identifier exists and is accessible, but the MP4 file has been removed or is not available for whatever reason
 
 ---
 
-## 1.33.0 - 2021/04/24
+## 1.33 - 2021/04/24
  * introduce garbage collection to `buildfiles()`
 
 ---
@@ -246,12 +247,12 @@
 
 ---
 
-## 1.32.0 - 2021/04/24
+## 1.32 - 2021/04/24
  * overhaul check stream output: replace with a function for uniform use throughout and easier future changes
 
 ---
 
-## 1.31.0 - 2021/04/24
+## 1.31 - 2021/04/24
  * overhaul check stream counter: replace `if` conditions with better and more simple `printf` line solution thanks to [@anubhava](https://stackoverflow.com/questions/67224543)
 
 ---
@@ -261,7 +262,7 @@
 
 ---
 
-## 1.30.0 - 2021/04/22
+## 1.30 - 2021/04/22
  * add current time to check stream to show what was checked, when
 
 ---
