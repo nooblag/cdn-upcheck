@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## 3.0.1 - 2021/08/11
+ * add facility to check last build date and notify the user about changes at runtime
+ * replace `echo` with `printf` line at start
+
+---
+
 ## 3.0 - 2021/08/11
  * add `git` tracking and sync with github
 

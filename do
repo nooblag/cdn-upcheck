@@ -28,7 +28,7 @@
 	data='.data'
 	# if the data folder doesn't exist, create it and set permissions
 	if [[ ! -e "${data}" ]]; then
-		mkdir -p "${wd}/${data}"; chmod 700 "${wd}/${data}"
+		mkdir -p "${wd}/${data}" && chmod 700 "${wd}/${data}"
 	fi 
 
 
@@ -447,7 +447,30 @@ emergency_cleanup(){
 ### RUNTIME GUTS ###
 
 # write the title
-echo "Checking CDN uploads."; echo;
+printf "Checking CDN uploads.\n\n"
+
+
+# find the "build date and time" of this file and if it's been changed since we last know, notify user
+if [[ -s "${wd}/${data}/.build" ]]; then
+	# the .build storage file exists and it's not empty so assume it's useful
+	last_build_date="$( < "${wd}/${data}/.build" )"
+	current_build="$( date --reference="${0}" +"%d %b %Y %l:%M:%S" )"
+	# test if build date and time has changed
+	if test "${last_build_date}" != "${current_build}"; then
+		# build has changed since script last run, notify user about using this last new build
+		printf 'Using new build, made %s\n\n' "${current_build}"
+		# update .build file
+		date --reference="${0}" > "${wd}/${data}/.build"
+	fi
+else
+	# .build not yet known, so find out
+	# get the modification date and time using `date --reference` of this script's name, i.e. $0, and write that to a file
+	date --reference="${0}" +"%d %b %Y %l:%M:%S" > "${wd}/${data}/.build"
+	current_build="$( < "${wd}/${data}/.build" )"
+	printf 'Using new build, made %s\n\n' "${current_build}"
+fi
+
+
 
 # check if lockfile exists for metadata extraction and if prior script is busy then stop everything/skip this check
 if [[ -f "/run/lock/.cdn-upcheck-metadata.lock" ]]; then
@@ -455,6 +478,7 @@ if [[ -f "/run/lock/.cdn-upcheck-metadata.lock" ]]; then
 	##cleanup
 	exit 1
 fi
+
 
 # `mysqldump` current database to extract MP4 links from. if that fails, we crash gracefully by invoking emergency_cleanup()
 # only do one dump per day to lighten server load, instead of unnecessarily refresh every hour
