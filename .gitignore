@@ -4,3 +4,5 @@
 # don't sync data storage
 .data/
 
+# ignore development build timestamp datastore, if it exists
+.build
