@@ -64,7 +64,8 @@
 
 	# set current hour (I) minute (M) second (S) timestamp to append to txt files to make them unique
 	# e.g. .230654-mp4-matches
-	timestamp=$(date +%g%m%d%H%M%S)
+	timestamp_format='+%g%m%d%H%M%S'
+	timestamp=$(date ${timestamp_format})
 
 	# set up check stream time formatting
 	# l = hour with leading zero, M = double digit minutes, S = double digit seconds
@@ -453,21 +454,21 @@ printf "Checking CDN uploads.\n\n"
 # find the "build date and time" of this file and if it's been changed since we last know, notify user
 if [[ -s "${wd}/${data}/.build" ]]; then
 	# the .build storage file exists and it's not empty so assume it's useful
-	last_build_date="$( < "${wd}/${data}/.build" )"
-	current_build="$( date --reference="${0}" +"%d %b %Y %l:%M:%S" )"
+	last_build_date="$( < "${wd}/${data}/.build")"
+	current_build="$(date --reference="${0}" ${timestamp_format})"
 	# test if build date and time has changed
 	if test "${last_build_date}" != "${current_build}"; then
 		# build has changed since script last run, notify user about using this last new build
-		printf 'Using new build, made %s\n\n' "${current_build}"
+		printf 'Using new build: %s\n\n' "${current_build}"
 		# update .build file
 		date --reference="${0}" > "${wd}/${data}/.build"
 	fi
 else
 	# .build not yet known, so find out
 	# get the modification date and time using `date --reference` of this script's name, i.e. $0, and write that to a file
-	date --reference="${0}" +"%d %b %Y %l:%M:%S" > "${wd}/${data}/.build"
-	current_build="$( < "${wd}/${data}/.build" )"
-	printf 'Using new build, made %s\n\n' "${current_build}"
+	date --reference="${0}" ${timestamp_format} > "${wd}/${data}/.build"
+	current_build="$( < "${wd}/${data}/.build")"
+	printf 'Using new build: %s\n\n' "${current_build}"
 fi
 
 
