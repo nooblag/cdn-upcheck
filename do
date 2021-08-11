@@ -20,8 +20,15 @@
 	# set the exit code of a pipeline to that of the rightmost command to exit with a non-zero status, or to zero if all commands of the pipeline exit successfully
 	set -o pipefail
 
-	# set our working path without trailing slash (nor spaces), and if that fails, stop here (|| exit)
-	wd='/home/jore/cdn-upcheck'
+	# get the full path to wherever this script resides, without trailing slash
+	fullpath_and_name="$(readlink --canonicalize "${0}")"
+	wd="$(dirname "${fullpath_and_name}")"
+	# name of this file only: ${0##*/}
+	# name with path ${0}
+	# fullpath and name: ${fullpath_and_name}
+	# path to this file only ${wd}
+
+	# set the path as working directory, and if for some reason that fails, stop here
 	cd "${wd}" || exit 1
 
 	# folder name for storing session data inside (will be created/cleaned)
@@ -122,7 +129,7 @@
 
 	# TRAP FOR EMERGENCY GARBAGE COLLECTION
 	# set up a trap for garbage collection that will run on aborts or fails
-	# clean up any temporary files from the failed session (current timestamp)
+	# cleans up any temporary files from the failed session (current timestamp)
 	trap emergency_cleanup SIGINT SIGTERM
 
 
@@ -131,11 +138,11 @@
 		var_names=("$@")
 		for var_name in "${var_names[@]}"; do
 			if [[ -z "${!var_name}" ]]; then
-				echo "Configuration setting not applied properly: check ${conf_dir}/.${var_name}"
+				echo "Configuration setting(s) not applied properly: check ${conf_dir}/.${var_name}"
 				var_still_unset=true
 			fi
 		done
-		if [[ -n "$var_still_unset" ]]; then
+		if [[ -n "${var_still_unset}" ]]; then
 			echo "Stopping."
 			exit 1
 		fi
@@ -155,7 +162,7 @@
 rendertimer(){
 	# convert seconds to Days, Hours, Minutes, Seconds
 	# thanks to Nikolay Sidorov and https://www.shellscript.sh/tips/hms/
-	local parts seconds D H M S D_TAG H_TAG M_TAG S_TAG
+	local parts seconds D H M S D_tag H_tag M_tag S_tag
 	seconds=${1:-0}
 	# all days
 	D=$((seconds / 60 / 60 / 24))
@@ -169,17 +176,17 @@ rendertimer(){
 	S=$((seconds % 60))
 
 	# set up "x day(s), x hour(s), x minute(s) and x second(s)" language
-	[ "$D" -eq "1" ] && D_TAG="day" || D_TAG="days"
-	[ "$H" -eq "1" ] && H_TAG="hour" || H_TAG="hours"
-	[ "$M" -eq "1" ] && M_TAG="minute" || M_TAG="minutes"
-	[ "$S" -eq "1" ] && S_TAG="second" || S_TAG="seconds"
+	[[ "$D" -eq "1" ]] && D_tag="day" || D_tag="days"
+	[[ "$H" -eq "1" ]] && H_tag="hour" || H_tag="hours"
+	[[ "$M" -eq "1" ]] && M_tag="minute" || M_tag="minutes"
+	[[ "$S" -eq "1" ]] && S_tag="second" || S_tag="seconds"
 
 	# put parts from above that exist into an array for sentence formatting
 	parts=()
-	[ "$D" -gt "0" ] && parts+=("$D $D_TAG")
-	[ "$H" -gt "0" ] && parts+=("$H $H_TAG")
-	[ "$M" -gt "0" ] && parts+=("$M $M_TAG")
-	[ "$S" -gt "0" ] && parts+=("$S $S_TAG")
+	[[ "$D" -gt "0" ]] && parts+=("$D $D_tag")
+	[[ "$H" -gt "0" ]] && parts+=("$H $H_tag")
+	[[ "$M" -gt "0" ]] && parts+=("$M $M_tag")
+	[[ "$S" -gt "0" ]] && parts+=("$S $S_tag")
 
 	# construct the sentence
 	result=""
@@ -187,9 +194,9 @@ rendertimer(){
 	for (( currentpart = 0; currentpart < lengthofparts; currentpart++ )); do
 		result+="${parts[$currentpart]}"
 		# if current part is not the last portion of the sentence, append a comma
-		[ "$currentpart" -ne $((lengthofparts-1)) ] && result+=", "
+		[[ "$currentpart" -ne $((lengthofparts-1)) ]] && result+=", "
 	done
-	echo "$result"
+	echo "${result}"
 }
 
 
@@ -204,7 +211,7 @@ extractmetadata_engine(){
 	# $2 is filename to write to
 
 	# set up a counter to work with how many lines we're dealing with, if we need it
-	local totallines; local counter;
+	local totallines counter
 	totallines="$(wc -l < "${1}")"
 	counter=1
 
@@ -232,7 +239,7 @@ extractmetadata_engine(){
 		grabXML="${link##*/}"
 		grabID="${grabXML%_meta.xml}"
 		# if we cannot grab the identifier, then just set it to use the full link so we don't have an empty string
-		if [ -n "${grabID}" ]; then
+		if [[ -n "${grabID}" ]]; then
 			identifier="${grabID}"
 		else
 			identifier="${line}"
@@ -252,14 +259,14 @@ extractmetadata_engine(){
 					printf "\n%s" "  metadata empty: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
 				else
 					# parse to extract server name and dir, use `tr` to trim empty lines and blank space
-					metadata="$(${wd}/.inc/jq --raw-output ".server, .dir" "${wd}/${data}/.${timestamp}-checklist-build-curl-tmp" | tr -d " \t\n\r" || true)"
+					metadata="$("${wd}/.inc/jq" --raw-output ".server, .dir" "${wd}/${data}/.${timestamp}-checklist-build-curl-tmp" | tr -d " \t\n\r" || true)"
 					# check if we have something inside $metadata to work with
 						if [[ -n "${metadata}" ]]; then
 						# assume `jq` extraction worked, let's build the CDN URL
 							# build server ID CDN url by replacing upstream CDN structure with local CDN to end up with cdnXXXXXX.cdn-upcheckdomain.tld URLs
 							cdnurl="$(sed "s@$cdn_origin_prefix\([0-9]\{6\}\)\.$cdn_origin_domain/@$cdn_prefix\1.$cdn_domain/@" <<< "${metadata}")"
 							# if we get a CDN URL build it, otherwise fall back to failsafe URL cdn.cmsdomain.com
-							if [[ -n "$cdnurl" ]]; then
+							if [[ -n "${cdnurl}" ]]; then
 								# build line which should now look something like https://cdn123456.cdn-upcheckdomain.tld/IDENTIFIER/ITENTIFIER_meta.xml
 								echo "https://${cdnurl}/${identifier}_meta.xml" >> "${2}"
 							else
@@ -314,7 +321,7 @@ extractmetadata() {
 		# extract all CDN lines ending with an MP4 file
 		"${wd}/.inc/ack" --nofilter -o "https??://${cdn_url##*//}/download/\S+?.mp4" "${wd}/${data}/.dump.sql" > "${wd}/${data}/.mp4-matches"
 		# `sort` .mp4-matches list to remove duplicates, as the extraction may contain duplicate data from Wordpress post revisions not yet cleaned from the database
-		# bear in mind at the moment that this list also includes draft posts if lines CDN match as `mysql` query from database dump can't distinguish post status from _postmeta table... could fix this in future with a more complex query for dumping
+		# bear in mind at the moment that this list also includes draft posts if lines CDN match as `mysql` query from database dump doesn't distinguish post status from _postmeta table... could fix this in future with a more complex query for dumping
 		sort --unique "${wd}/${data}/.mp4-matches" > "${wd}/${data}/.mp4-matches-sorted"
 	printf 'done.\n'
 
@@ -364,7 +371,7 @@ buildfiles() {
 	# sort this list to ensure it's clean, no duplicates
 	sort --unique "${wd}/${data}/.mp4-urls" > "${wd}/${data}/.mp4-urls-sorted"
 
-	# copy the last good lists to check to use for this session
+	# copy the last good lists for use in this session
 	cp "${wd}/${data}/.identifier-matches-list-sorted" "${wd}/${data}/.${timestamp}-identifier-matches-list-sorted"
 	cp "${wd}/${data}/.xml-urls-sorted" "${wd}/${data}/.${timestamp}-xml-urls-sorted"
 	cp "${wd}/${data}/.mp4-urls-sorted" "${wd}/${data}/.${timestamp}-mp4-urls-sorted"
@@ -379,7 +386,7 @@ buildCDNrefreshlist(){
 	# log the CDN ID of this identifier in a list of CDN domains to refresh so we can try to update DNS for this failed host
 	# $id contains the server number that needs refreshing, i.e. 123456. use it to build cdn123456.cdn-upcheckdomain.tld and add that to the list for refreshing
 	# != "-EMPTY" is used to check against because that's a placeholder for a CDN ID that is served by cdn.cmsdomain.com not cdn123456.cdn-upcheckdomain.tld
-	# if the current CDN is a 'blank' then don't write anything
+	# i.e. if the current CDN is a 'blank' then don't write anything
 	if [[ -n "${id}" ]] && [[ "${id}" != "-EMPTY" ]]; then
 		echo "${cdn_origin_prefix}${id}.${cdn_origin_domain}" >> "${wd}/${data}/.${timestamp}-cdns-to-refresh"
 	fi
@@ -434,10 +441,10 @@ emergency_cleanup(){
 		# SIGTERM doesn’t kill the child processes, SIGKILL kills the child processes as well
 			echo "Stopping all concurrent running checks."
 			# list all currently running instances of this script
-			##pgrep --list-name --full "${wd}/${0##*/}"
+			##pgrep --list-name --full "${fullpath_and_name}"
 			# kill all currently running instances this script
 			# --full for searching in full process name, --signal SIGTERM for 'terminate' signal, --echo display list of what was killed (doesn't work if we're killing *this* instance too)
-			pkill --full --echo --signal SIGTERM "${wd}/${0##*/}"
+			pkill --full --echo --signal SIGTERM "${fullpath_and_name}"
 			# `pkill` obviously kills this at above line, so lines from now on are never executed, but are included for handling when `pkill` is commented out
 
 	# stop here with exit status 1 for fail
@@ -457,18 +464,18 @@ printf "Checking CDN uploads.\n\n"
 if [[ -s "${wd}/.build" ]]; then
 	# the .build storage file exists and it's not empty so assume it's useful
 	last_build_date="$( < "${wd}/.build")"
-	current_build="$(date --reference="${0}" ${timestamp_format})"
+	current_build="$(date --reference="${fullpath_and_name}" ${timestamp_format})"
 	# test if build date and time has changed
-	if test "${last_build_date}" != "${current_build}"; then
+	if [[ "${last_build_date}" != "${current_build}" ]]; then
 		# build has changed since script last run, notify user about using this last new build
 		printf 'Using new build: %s\n\n' "${current_build}"
 		# update .build file
-		date --reference="${0}" > "${wd}/.build"
+		date --reference="${fullpath_and_name}" > "${wd}/.build"
 	fi
 else
 	# .build not yet known, so find out
 	# get the modification date and time using `date --reference` of this script's name, i.e. $0, and write that to a file
-	date --reference="${0}" ${timestamp_format} > "${wd}/.build"
+	date --reference="${fullpath_and_name}" ${timestamp_format} > "${wd}/.build"
 	chmod 600 "${wd}/.build"
 	current_build="$( < "${wd}/.build")"
 	printf 'Using new build: %s\n\n' "${current_build}"
@@ -490,7 +497,7 @@ fi
 	if [[ -s "${wd}/${data}/.dump.sql" ]]; then
 		# check to see how old the file is, if it's less than ${refreshtime} minutes, use it
 		# the find command must be quoted in case the file in question contains spaces or special characters.
-		if test "$(find "${wd}/${data}/.dump.sql" -mmin -${refreshtime})"; then
+		if [[ "$(find "${wd}/${data}/.dump.sql" -mmin -${refreshtime})" ]]; then
 			# use it
 			printf 'Database dump is fresh enough, using it.\n\n'
 			buildfiles || emergency_cleanup
@@ -524,18 +531,18 @@ counter=1
 
 
 # if need be (if identifiers-checked.dat exists and is not empty), compare identifiers we have now with what was checked last time and if any have changed, notify what they are
-	if [ -s "${wd}/${data}/identifiers-checked.list" ]; then
+	if [[ -s "${wd}/${data}/identifiers-checked.list" ]]; then
 	# what's been removed since last time?
 	# use OR pipe (|| true) for `diff` to return zero exit status since a match with diff returns a non-zero exit status, and with `set -o errexit` it stops everything unnecessarily
 	idsremoved="$(diff --suppress-common-lines --changed-group-format='%<' --unchanged-group-format='' "${wd}/${data}/identifiers-checked.list" "${wd}/${data}/.${timestamp}-identifier-matches-list-sorted" || true)"
-		if [ -n "${idsremoved}" ]; then
+		if [[ -n "${idsremoved}" ]]; then
 			printf '*** Uploads REMOVED since last refresh:\n'
 			printf '%s\n' "${idsremoved}"
 			printf '\n'
 		fi
 	# which IDs are new?
 	idsnew="$(diff --suppress-common-lines --changed-group-format='%>' --unchanged-group-format='' "${wd}/${data}/identifiers-checked.list" "${wd}/${data}/.${timestamp}-identifier-matches-list-sorted" || true)"
-		if [ -n "${idsnew}" ]; then
+		if [[ -n "${idsnew}" ]]; then
 			printf '*** Uploads added since last refresh:\n'
 			printf '%s\n' "${idsnew}"
 			printf '\n'
@@ -577,7 +584,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 			grabXML="${link##*/}"
 			grabID="${grabXML%_meta.xml}"
 			# if we cannot grab the identifier, then just set it to use the full link so we don't have an empty string
-				if [ -n "$grabID" ]; then
+				if [[ -n "$grabID" ]]; then
 					identifier="${grabID}"
 				else
 					identifier="${line}"
@@ -588,7 +595,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 			# add `true` to always exit successfully even if we don't get an ID match
 			id="$(awk -F '/' '{print $3}' <<< "${link}" | grep --only-matching '[0-9]\{6\}' || true)"
 			# if we cannot grab the CDN ID, then just set it to use a dummy so we don't have an empty string
-			if [ -n "${id}" ]; then
+			if [[ -n "${id}" ]]; then
 				cdnid="${cdn_prefix}${id}"
 			else
 				id="-EMPTY"
@@ -801,7 +808,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 					grabXML="${link##*/}"
 					grabID="${grabXML%_meta.xml}"
 					# if we cannot grab the identifier, then just set it to use the full link so we don't have an empty string
-					if [ -n "${grabID}" ]; then
+					if [[ -n "${grabID}" ]]; then
 						identifier="${grabID}"
 					else
 						identifier="${line}"
@@ -812,7 +819,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 					# add `true` to always exit successfully even if we don't get an ID match
 					id="$(awk -F '/' '{print $3}' <<< "${link}" | grep --only-matching '[0-9]\{6\}' || true)"
 					# if we cannot grab the CDN ID, then just set it to use a dummy so we don't have an empty string
-					if [ -n "${id}" ]; then
+					if [[ -n "${id}" ]]; then
 						cdnid="${cdn_prefix}${id}"
 					else
 						id="-EMPTY"
@@ -838,18 +845,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 
 					# now the logic that does things depending on status returned
 					if [[ "${httpStatus}" == 200 ]]; then
-						# seems ok so grab metadata to see if it's been marked as high bandwidth
-						# -L follow redirects, --silent, -o output XML to .xml-data-tmp file
-						curl -L --silent -o "${wd}/${data}/.${timestamp}-xml-data-tmp" "${link}" || true
-						# has it been marked as high bandwidth? use grep to search for text in the XML file that denotes that
-						if grep -q "<collection>highbandwidth</collection>" "${wd}/${data}/.${timestamp}-xml-data-tmp"; then
-							checkstream "${fail}" "High bandwidth." "${link}"
-							# send e-mail about high bandwidth removal right away
-							printf '%s has been marked as high bandwidth.\n\n' "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [High Bandwidth] ${identifier}" "${notify}"
-						else
-							# it's not marked as high bandwidth, we're all good
 							checkstream "${ok}"
-						fi
 
 
 
@@ -861,11 +857,11 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 						#exitCode="99"
 
 						# parse different actions depending on type of error. common ones are:
-						if [ $exitCode == 0 ]; then
+						if [[ $exitCode == 0 ]]; then
 							# 0 is paradoxically all fine, proceed as usual, i.e. do nothing now
 							checkstream "${ok}" "cURL returned 0 as an exitcode, but otherwise OK."
 
-						elif [ $exitCode == 6 ]; then
+						elif [[ $exitCode == 6 ]]; then
 							# 6 is couldn't resolve host
 							checkstream "${fail}" "Couldn't resolve host." "${link}"
 							# log this identifier in list of 000 fails to send bulk at end
@@ -873,7 +869,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 							# trigger update CDN DNS for this item
 							buildCDNrefreshlist
 
-						elif [ $exitCode == 7 ]; then
+						elif [[ $exitCode == 7 ]]; then
 							# 7 is connection refused
 							checkstream "${fail}" "Connection Refused." "${link}"
 							# log this identifier in list of 000 fails to send bulk at end
@@ -960,7 +956,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 			ZONE="$(curl -sLX GET "https://api.cloudflare.com/client/v4/zones?name=${cdn_domain}&status=active" \
 				-H "X-Auth-Email: ${cdn_acc_email}" \
 				-H "X-Auth-Key: ${cdn_api_key}" \
-				-H "Content-Type: application/json" | ${wd}/.inc/jq -r .result[0].id || true)"
+				-H "Content-Type: application/json" | "${wd}/.inc/jq" -r .result[0].id || true)"
 			if [[ $ZONE == "null" ]]; then
 				printf 'FAILED. Is the account e-mail and API key correct for the %s account?\n\n\n' "${cdn_domain}"
 			else
@@ -975,7 +971,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 							if [[ -n "${id}" ]]; then
 								# extracted server ID successfully
 								# now use `host` to check if the upstream CDN server we're iterating returns an IP, which shows it has DNS (exists)
-								ip="$(host "${url}" | ${wd}/.inc/ack -o "\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}" || true)"
+								ip="$(host "${url}" | "${wd}/.inc/ack" -o "\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}" || true)"
 									if [[ -n "${ip}" ]]; then
 										# `host` returned an IP for upstream CDN server, it exists, so increase count and notify user
 										printf '%s %s.%s  ->  %s' "$(date ${time})" "${cdn_prefix}${id}" "${cdn_domain}" "${ip}"
@@ -991,7 +987,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 											RECORD="$(curl -sLX GET "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records?name=${cdn_sub_domain}" \
 												-H "X-Auth-Email: ${cdn_acc_email}" \
 												-H "X-Auth-Key: ${cdn_api_key}" \
-												-H "Content-Type: application/json" | ${wd}/.inc/jq -r .result[0].id || true)"
+												-H "Content-Type: application/json" | "${wd}/.inc/jq" -r .result[0].id || true)"
 											# sleep a short moment
 											intwait="0.$(((RANDOM % 899)+100))s"; sleep "$intwait";
 											# write record data
@@ -1000,7 +996,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 												-H "X-Auth-Email: ${cdn_acc_email}" \
 												-H "X-Auth-Key: ${cdn_api_key}" \
 												-H "Content-Type: application/json" \
-												--data '{"type":"A","name":"'${cdn_sub_domain}'","content":"'${cdn_record_data}'","ttl":1,"proxied":true}' | ${wd}/.inc/jq -r .result.id || true)"
+												--data '{"type":"A","name":"'${cdn_sub_domain}'","content":"'${cdn_record_data}'","ttl":1,"proxied":true}' | "${wd}/.inc/jq" -r .result.id || true)"
 											fi
 											# sleep another short moment
 											intwait="0.$(((RANDOM % 899)+100))s"; sleep "$intwait";
