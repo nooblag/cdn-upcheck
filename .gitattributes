@@ -1,0 +1,6 @@
+# don't consider .inc/ as part of this project for language detection
+.inc/* linguist-vendored
+
+# don't consider docs as part of language detection either
+changelog.md linguist-documentation
+readme.md linguist-documentation
