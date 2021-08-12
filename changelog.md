@@ -1,7 +1,7 @@
 ﻿# Changelog
 
 ## 3.0.4 - 2021/08/13
- * refactor `extractmetadata()` and `buildfiles()` to move `awk` building of `.mp4-urls` which was unnessecary every time script runs, it's needed at extraction time
+ * refactor `extractmetadata()` and `buildfiles()` to move `awk` building of `.mp4-urls` which was unnecessary every time script runs, it's needed at extraction time
  * move `$refreshtime` to a variable in `.conf/` rather than hardcoded
 
 ---
