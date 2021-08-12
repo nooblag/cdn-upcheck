@@ -1,4 +1,4 @@
-# cdn-upcheck/do
+﻿# cdn-upcheck/do
 
 The purpose of this script is to run as a bi-hourly cronjob that extracts all references to CDN video streaming for project site and checks both the video files and metadata for uptime, availability, and correctness at the remote end.
 
@@ -20,7 +20,7 @@ MAILTO='emailaddress@cmsdomain.com'
 	# each check (of currently ~850 identifiers) takes ~2 hours to complete (~7 identifiers per minute).
 	# running two checks every hour means approx ~14 identifiers checked per minute.
 	# each unique identifier should be checked at least once inside each hourly range, but up to twice or three times at most inside the same hour (uncertain because of `shuf` randomisation).
-	# the actual check window could be a few seconds up to one or two hours each identifier is checked in 24hr peroid, both because of `shuf` but also because database refreshes occur every 360 minutes (6 hrs
+	# the actual check window could be a few seconds up to one or two hours each identifier is checked in 24hr period, both because of `shuf` but also because database refreshes occur every 360 minutes (6 hrs
 	# which takes 20-30 minutes itself.
 
 	# midnight here, 7am at CDN
@@ -102,13 +102,13 @@ MAILTO='emailaddress@cmsdomain.com'
 Config files are expected in `.config/` with the following layout:
 
 ### .cdn_acc_email
-The email address to use to interfact with CDN API, e.g. admin@cdn-upcheckdomain.tld
+The email address to use to interact with CDN API, e.g. admin@cdn-upcheckdomain.tld
 
 ### .cdn_api_key
-The API key to use to interfact with CDN API
+The API key to use to interact with CDN API
 
 ### .cdn_domain
-The CDN base FQDN to use to interfact with CDN API, e.g. `cdn-upcheckdomain.tld`
+The CDN base FQDN to use to interact with CDN API, e.g. `cdn-upcheckdomain.tld`
 
 ### .cdn_origin_domain
 The *domain* for the non-whitelabel CDN provider, e.g. the `region.upstreamhost.com` part of `fooXXXXXX.region.upstreamhost.com`
@@ -117,7 +117,7 @@ The *domain* for the non-whitelabel CDN provider, e.g. the `region.upstreamhost.
 The upstream CDN provider's non-whitelabel CDN *prefix*, e.g. `foo` part of `fooXXXXXX.region.upstreamhost.com`
 
 ### .cdn_origin_url
-The non-whitelabel URL of the CDN provider so there's a failsafe zone to work with for DNS, e.g. `https://upstreamhost.com`
+The non-whitelabel URL of the CDN provider so there's a fail-safe zone to work with for DNS, e.g. `https://upstreamhost.com`
 
 ### .cdn_prefix
 The prefix used in all DNS records for the cdn-upcheck zone, e.g. the `cdn` part of `cdnXXXXXX.cdn-upcheckdomain.tld`
