@@ -80,7 +80,7 @@
 
 	# set time interval in minutes for when database refresh should happen, also used for garbage collection
 	# e.g. refresh database and clear old temporary files after 12 hours, 5 minutes
-	refreshtime=725
+	refreshtime="$( < "${conf_dir}/.refreshtime")"
 
 	# set up check stream status notification formatting, also used in email notifications
 	  ok='[ OK ]'
@@ -150,7 +150,7 @@
 		return 0
 	}
 
-	checkconfigvars notify cdn_origin_url cdn_url mysqldump_db mysqldump_user mysqldump_pw cdn_prefix cdn_domain cdn_acc_email cdn_api_key cdn_origin_prefix cdn_origin_domain
+	checkconfigvars notify cdn_origin_url cdn_url mysqldump_db mysqldump_user mysqldump_pw cdn_prefix cdn_domain cdn_acc_email cdn_api_key cdn_origin_prefix cdn_origin_domain refreshtime
 
 
 
