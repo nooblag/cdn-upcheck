@@ -346,10 +346,7 @@ extractmetadata() {
 
 	# also ensure this list is unqiue and sorted
 	sort --unique "${wd}/${data}/.xml-urls" > "${wd}/${data}/.xml-urls-sorted"
-}
 
-
-buildfiles() {
 	# use two lists (.xml-urls-sorted and .mp4-matches-sorted) to build a new list of what each identifiers MP4 files are. use required later to check if an identifier's MP4 files exist/are available
 	# `awk` solution thanks to @SasaKanjuh, comments added, -F for field delimiter
 	awk -F '/' ' {
@@ -370,13 +367,16 @@ buildfiles() {
 
 	# sort this list to ensure it's clean, no duplicates
 	sort --unique "${wd}/${data}/.mp4-urls" > "${wd}/${data}/.mp4-urls-sorted"
+}
 
-	# copy the last good lists for use in this session
+
+buildfiles() {
+	# copy the lists created since last refreshtime for use in this session
 	cp "${wd}/${data}/.identifier-matches-list-sorted" "${wd}/${data}/.${timestamp}-identifier-matches-list-sorted"
 	cp "${wd}/${data}/.xml-urls-sorted" "${wd}/${data}/.${timestamp}-xml-urls-sorted"
 	cp "${wd}/${data}/.mp4-urls-sorted" "${wd}/${data}/.${timestamp}-mp4-urls-sorted"
 
-	# reshuffle checking list
+	# reshuffle checking list for this session
 	shuf "${wd}/${data}/.${timestamp}-xml-urls-sorted" > "${wd}/${data}/.${timestamp}-xml-urls-shuf"
 }
 
