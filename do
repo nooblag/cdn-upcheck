@@ -470,7 +470,7 @@ if [[ -s "${wd}/.build" ]]; then
     # build has changed since script last run, notify user about using this last new build
     printf 'Using new build: %s\n\n' "${current_build}"
     # update .build file
-    date --reference="${fullpath_and_name}" > "${wd}/.build"
+    date --reference="${fullpath_and_name}" ${timestamp_format} > "${wd}/.build"
   fi
 else
   # .build not yet known, so find out
