@@ -410,7 +410,7 @@ cleanup(){
     # find how long the timestamp var is, e.g. 12 chars ${#timestamp}, and use to build a regex line with `find` to go looking for old timestamped files and clean them up
     find_regex=".*\.[0-9]{${#timestamp}}.*"
     # line below with $find_regex should expand to something like '.*\.[0-9]{12}.*' where 12 is the length of the timestamp
-    find "${wd}/${data}/" -maxdepth 1 -regextype posix-extended -regex ${find_regex} -amin +$((refreshtime * 2)) -type f -delete
+    find "${wd}/${data}/" -maxdepth 1 -regextype posix-extended -regex "${find_regex}" -amin +$((refreshtime * 2)) -type f -delete
   printf 'done.\n'
 }
 
@@ -497,7 +497,7 @@ fi
   if [[ -s "${wd}/${data}/.dump.sql" ]]; then
     # check to see how old the file is, if it's less than ${refreshtime} minutes, use it
     # the find command must be quoted in case the file in question contains spaces or special characters.
-    if [[ "$(find "${wd}/${data}/.dump.sql" -mmin -${refreshtime})" ]]; then
+    if [[ "$(find "${wd}/${data}/.dump.sql" -mmin -"${refreshtime}")" ]]; then
       # use it
       printf 'Database dump is fresh enough, using it.\n\n'
       buildfiles || emergency_cleanup
