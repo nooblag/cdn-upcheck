@@ -312,9 +312,9 @@ extractmetadata_engine(){
 
 extractmetadata() {
 	# first ensure we have a clean slate!
-	rm --force "${wd}/${data}/.identifier-*"
-	rm --force "${wd}/${data}/.mp4-*"
-	rm --force "${wd}/${data}/.xml-*"
+	find "${wd}/${data}/" -maxdepth 1 -name ".identifier-*" -type f -delete
+	find "${wd}/${data}/" -maxdepth 1 -name ".mp4-*" -type f -delete
+	find "${wd}/${data}/" -maxdepth 1 -name ".xml-*" -type f -delete
 
 	# run `ack` on the database dump to extract all references to content hosted at cdn.cmsdomain.com with or without HTTPS
 	printf 'Extracting CDN filenames... '
@@ -337,12 +337,10 @@ extractmetadata() {
 		"${wd}/.inc/ack" --nofilter -o "(?<=/download/).*(?=\/)" "${wd}/${data}/.identifier-matches-sorted" > "${wd}/${data}/.identifier-matches-list"
 		# wash identifiers-temp file through `sort` with --unique to ensure duplicates that are referenced from playlists/series are removed
 		sort --unique "${wd}/${data}/.identifier-matches-list" > "${wd}/${data}/.identifier-matches-list-sorted"
-		# shuffle all the lines so that extracting CDN metadata is always starting with different file list order at their end on each check runtime
-		shuf "${wd}/${data}/.identifier-matches-list-sorted" > "${wd}/${data}/.identifier-matches-list-shuf"
 	printf 'done.\n'
 
 	# build the check list
-	extractmetadata_engine "${wd}/${data}/.identifier-matches-list-shuf" "${wd}/${data}/.xml-urls"
+	extractmetadata_engine "${wd}/${data}/.identifier-matches-list-sorted" "${wd}/${data}/.xml-urls"
 
 	# also ensure this list is unqiue and sorted
 	sort --unique "${wd}/${data}/.xml-urls" > "${wd}/${data}/.xml-urls-sorted"
@@ -377,6 +375,7 @@ buildfiles() {
 	cp "${wd}/${data}/.mp4-urls-sorted" "${wd}/${data}/.${timestamp}-mp4-urls-sorted"
 
 	# reshuffle checking list for this session
+	# $timestamp-xml-urls-shuf is the file that is sent to the first pass
 	shuf "${wd}/${data}/.${timestamp}-xml-urls-sorted" > "${wd}/${data}/.${timestamp}-xml-urls-shuf"
 }
 
@@ -405,12 +404,16 @@ checkstream(){
 cleanup(){
 	printf '\nCleaning up... '
 		# clean up this session's temporary files
-		find "${wd}/${data}" -maxdepth 1 -name ".${timestamp}*" -type f -delete
+		find "${wd}/${data}/" -maxdepth 1 -name ".${timestamp}*" -type f -delete
 		# also clear temporary files that have not been accessed for more than twice our last refresh time (x minutes)
 		# this handles cleanup in situations where cron is disrupted or a prior script aborts or fails for whatever reason
-		# timestamp is 12 chars long, hence 12 ?s to capture all past rollouts, and we double refresh time so as to leave last refresh time's data still intact for now
 		double_refreshtime="$((refreshtime * 2))"
-		find "${wd}/${data}" -maxdepth 1 -name ".????????????-*" -amin +${double_refreshtime} -type f -delete
+		# find how long the timestamp var is, e.g. 12 chars
+		timestamp_length="${#timestamp}"
+		# now use how long timestamp is to build a regex line with `find` to go looking for old timestamped files and clean them up
+		find_regex=".*\.[0-9]{${timestamp_length}}-.*"
+		# line below with $find_regex should expand to something like '.*\.[0-9]{12}-.*' where 12 is the length of the timestamp
+		find "${wd}/${data}/" -maxdepth 1 -regextype posix-extended -regex ${find_regex} -amin +${double_refreshtime} -type f -delete
 	printf 'done.\n'
 }
 
@@ -418,7 +421,7 @@ cleanup(){
 emergency_cleanup(){
 	printf '\n\nEmergency cleanup... '
 		# clear this failed session's temporary files
-		find "${wd}/${data}" -maxdepth 1 -name ".${timestamp}*" -type f -delete
+		find "${wd}/${data}/" -maxdepth 1 -name ".${timestamp}*" -type f -delete
 
 		# if the metadata extraction is running inside this instance during fail (i.e. lock file with current timestamp)
 		if [[ -f "/run/lock/.${timestamp}-${lockfile}" ]]; then
@@ -426,7 +429,7 @@ emergency_cleanup(){
 			# use further check (${data:?}) on $data variable here to prevent `rm` wiping out everything from root (/) if $data is empty for whatever reason (https://github.com/koalaman/shellcheck/wiki/SC2115) don't want it attempting to wipe out root!
 			rm --recursive --force "${wd}/${data:?}/"
 			# also clean up this session's file lock
-			rm --recursive --force "/run/lock/.${timestamp}-${lockfile}"
+			rm --force "/run/lock/.${timestamp}-${lockfile}"
 		fi
 
 		# ensure file lock from any instance is removed regardless of what happened this time
@@ -486,7 +489,7 @@ fi
 # check if lockfile exists for metadata extraction and if prior script is busy then stop everything/skip this check
 if [[ -f "/run/lock/.cdn-upcheck-metadata.lock" ]]; then
 	echo "*** ABORT *** Building check list still running from prior cronjob. Stopping."
-	##cleanup
+	cleanup
 	exit 1
 fi
 
@@ -531,17 +534,17 @@ counter=1
 
 
 # if need be (if identifiers-checked.dat exists and is not empty), compare identifiers we have now with what was checked last time and if any have changed, notify what they are
-	if [[ -s "${wd}/${data}/identifiers-checked.list" ]]; then
+	if [[ -s "${wd}/${data}/last-checked.list" ]]; then
 	# what's been removed since last time?
 	# use OR pipe (|| true) for `diff` to return zero exit status since a match with diff returns a non-zero exit status, and with `set -o errexit` it stops everything unnecessarily
-	idsremoved="$(diff --suppress-common-lines --changed-group-format='%<' --unchanged-group-format='' "${wd}/${data}/identifiers-checked.list" "${wd}/${data}/.${timestamp}-identifier-matches-list-sorted" || true)"
+	idsremoved="$(diff --suppress-common-lines --changed-group-format='%<' --unchanged-group-format='' "${wd}/${data}/last-checked.list" "${wd}/${data}/.${timestamp}-identifier-matches-list-sorted" || true)"
 		if [[ -n "${idsremoved}" ]]; then
 			printf '*** Uploads REMOVED since last refresh:\n'
 			printf '%s\n' "${idsremoved}"
 			printf '\n'
 		fi
 	# which IDs are new?
-	idsnew="$(diff --suppress-common-lines --changed-group-format='%>' --unchanged-group-format='' "${wd}/${data}/identifiers-checked.list" "${wd}/${data}/.${timestamp}-identifier-matches-list-sorted" || true)"
+	idsnew="$(diff --suppress-common-lines --changed-group-format='%>' --unchanged-group-format='' "${wd}/${data}/last-checked.list" "${wd}/${data}/.${timestamp}-identifier-matches-list-sorted" || true)"
 		if [[ -n "${idsnew}" ]]; then
 			printf '*** Uploads added since last refresh:\n'
 			printf '%s\n' "${idsnew}"
@@ -552,7 +555,7 @@ counter=1
 	# update the list of identifiers for this test next time
 	# use -s test to only deal with files greater than zero bytes
 	if [[ -s "${wd}/${data}/.${timestamp}-identifier-matches-list-sorted" ]]; then
-		mv -f "${wd}/${data}/.${timestamp}-identifier-matches-list-sorted" "${wd}/${data}/identifiers-checked.list"
+		mv -f "${wd}/${data}/.${timestamp}-identifier-matches-list-sorted" "${wd}/${data}/last-checked.list"
 	fi
 
 

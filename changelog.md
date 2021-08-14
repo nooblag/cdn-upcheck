@@ -1,5 +1,19 @@
 ﻿# Changelog
 
+## 3.1 - 2021/08/14
+
+* changed the last check list filename
+
+* remove unnecessary `shuf` when extracting identifiers, as the XML list is used now, and is shuffled for each unique session with `buildfiles()` instead
+
+* fixed bug where clean slate was not ensured in `extractmetadata()` as `*` was inside quotes for filename so it was not interpreted as wildcard (and hence files not removed), but these lines improved by replacing `rm` with `find` anyway
+
+* subtly improved use of `rm` and `find` throughout
+
+* improve garbage collection with better regex in `cleanup()`
+
+---
+
 ## 3.0.4 - 2021/08/13
  * refactor `extractmetadata()` and `buildfiles()` to move `awk` building of `.mp4-urls` which was unnecessary every time script runs, it's needed at extraction time
  * move `$refreshtime` to a variable in `.conf/` rather than hardcoded
