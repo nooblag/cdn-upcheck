@@ -408,11 +408,9 @@ cleanup(){
 		# also clear temporary files that have not been accessed for more than twice our last refresh time (x minutes)
 		# this handles cleanup in situations where cron is disrupted or a prior script aborts or fails for whatever reason
 		double_refreshtime="$((refreshtime * 2))"
-		# find how long the timestamp var is, e.g. 12 chars
-		timestamp_length="${#timestamp}"
-		# now use how long timestamp is to build a regex line with `find` to go looking for old timestamped files and clean them up
-		find_regex=".*\.[0-9]{${timestamp_length}}-.*"
-		# line below with $find_regex should expand to something like '.*\.[0-9]{12}-.*' where 12 is the length of the timestamp
+		# find how long the timestamp var is, e.g. 12 chars ${#timestamp}, and use to build a regex line with `find` to go looking for old timestamped files and clean them up
+		find_regex=".*\.[0-9]{${#timestamp}}.*"
+		# line below with $find_regex should expand to something like '.*\.[0-9]{12}.*' where 12 is the length of the timestamp
 		find "${wd}/${data}/" -maxdepth 1 -regextype posix-extended -regex ${find_regex} -amin +${double_refreshtime} -type f -delete
 	printf 'done.\n'
 }
