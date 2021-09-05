@@ -1,16 +1,23 @@
 ﻿# Changelog
 
+## 3.1.2 - 2021/09/05
+ * improve failed status info inside MP4 checking for a HTTP 200 response in the first pass: render a verbose error message
+
+---
+
+## 3.1.1 - 2021/08/14
+ * improve quoting throughout in a couple of places where old copy/paste slipped through commit
+ * fix bug in refreshing build timestamp, ditto
+ * convert tabs to spaces throughout
+
+---
+
 ## 3.1 - 2021/08/14
-
-* changed the last check list filename
-
-* remove unnecessary `shuf` when extracting identifiers, as the XML list is used now, and is shuffled for each unique session with `buildfiles()` instead
-
-* fixed bug where clean slate was not ensured in `extractmetadata()` as `*` was inside quotes for filename so it was not interpreted as wildcard (and hence files not removed), but these lines improved by replacing `rm` with `find` anyway
-
-* subtly improved use of `rm` and `find` throughout
-
-* improve garbage collection with better regex in `cleanup()`
+ * changed the last check list filename
+ * remove unnecessary `shuf` when extracting identifiers, as the XML list is used now, and is shuffled for each unique session with `buildfiles()` instead
+ * fixed bug where clean slate was not ensured in `extractmetadata()` as `*` was inside quotes for filename so it was not interpreted as wildcard (and hence files not removed), but these lines improved by replacing `rm` with `find` anyway
+ * subtly improved use of `rm` and `find` throughout
+ * improve garbage collection with better regex in `cleanup()`
 
 ---
 

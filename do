@@ -662,7 +662,8 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 
                 # if any other error, then report failure in the check stream
                 else
-                  printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "Problem checking MP4 file: ${mp4url}"
+                  mp4StatusInfo="http_${mp4Status}"
+                  printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "Problem checking MP4 file: ${mp4url} ${!mp4StatusInfo}"
                   ##printf '%s may be removed.\n\n%s reported 404 error just now.\n' "${cdn_origin_url}/details/${identifier}" "${mp4url}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
                 fi
 
