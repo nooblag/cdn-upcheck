@@ -249,35 +249,37 @@ extractmetadata_engine(){
     intwait="0.$(((RANDOM % 899)+100))s"; sleep "$intwait";
 
     # fetch metadata from /metadata JSON and save it to temp file for further parsing
-    curl --silent "${cdn_origin_url}/metadata/${identifier}" > "${wd}/${data}/.${timestamp}-checklist-build-curl-tmp" || true
+    curl --silent "${cdn_origin_url}/metadata/${identifier}" > "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" || true
     # test if cURL output starts with an { as expected, if not, the site is down or we have JSON error, so fall back to cdn.cmsdomain.com default
-      if read -r -n1 char < "${wd}/${data}/.${timestamp}-checklist-build-curl-tmp"; [[ $char = "{" ]]; then
+      if read -r -n1 char < "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp"; [[ $char = "{" ]]; then
         # yes, metadata starts with { but now check if the metadata returned is empty, i.e. {}
-        if read -r -n2 char < "${wd}/${data}/.${timestamp}-checklist-build-curl-tmp"; [[ $char = "{}" ]]; then
+        if read -r -n2 char < "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp"; [[ $char = "{}" ]]; then
           # metadata is empty, use failsafe URL
           echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
           printf "\n%s" "  metadata empty: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
         else
           # parse to extract server name and dir, use `tr` to trim empty lines and blank space
-          metadata="$("${wd}/.inc/jq" --raw-output ".server, .dir" "${wd}/${data}/.${timestamp}-checklist-build-curl-tmp" | tr -d " \t\n\r" || true)"
-          # check if we have something inside $metadata to work with
-            if [[ -n "${metadata}" ]]; then
-            # assume `jq` extraction worked, let's build the CDN URL
+          server="$("${wd}/.inc/jq" --raw-output ".server" "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" | tr -d " \t\n\r" || true)"
+          dir="$("${wd}/.inc/jq" --raw-output ".dir" "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" | tr -d " \t\n\r" || true)"
+          # check if we have vars to work with
+            if [[ -n "${server}" ]] && [[ -n ${dir} ]]; then
+            # a server name and dir is available, so build the CDN URL
               # build server ID CDN url by replacing upstream CDN structure with local CDN to end up with cdnXXXXXX.cdn-upcheckdomain.tld URLs
-              build_cdnurl="$(sed "s@$cdn_origin_prefix\([0-9]\{6\}\)\.$cdn_origin_domain/@$cdn_prefix\1.$cdn_domain/@" <<< "${metadata}" || true)"
+              build_cdnurl="$(sed "s@${cdn_origin_prefix}\([0-9]\{6\}\)\.${cdn_origin_domain}/@${cdn_prefix}\1.${cdn_domain}/@" <<< "${server}${dir}" || true)"
               # if we get a CDN URL build it, otherwise fall back to failsafe URL cdn.cmsdomain.com
               if [[ -n "${build_cdnurl}" ]]; then
                 # build line which should now look something like https://cdn123456.cdn-upcheckdomain.tld/IDENTIFIER/ITENTIFIER_meta.xml
                 echo "https://${build_cdnurl}/${identifier}_meta.xml" >> "${2}"
+                echo "https://${build_cdnurl}/${identifier}_meta.xml"
               else
                 # build_cdnurl was empty so build a failsafe URL
                 echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
-                printf "\n%s" "  build_cdnurl empty: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
+                printf "\n%s" "  metadata empty: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
               fi
             else
               # `jq` returned empty extraction so build a failsafe URL
               echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
-              printf "\n%s" "  jq failed: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
+              printf "\n%s" "  metadata failed: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
             fi
           # done working with valid metadata
         fi
@@ -289,12 +291,12 @@ extractmetadata_engine(){
   # on to the next identifier, advance the count
   counter=$((counter +1))
 
+  # clean up temporary file
+  rm --force "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp"
+
   # we're done when we've reached the end of the file
   done < "${1}"
   printf ' done.\n'
-
-  # clean up temporary file
-  rm --force "${wd}/${data}/.${timestamp}-checklist-build-curl-tmp"
 
   # extraction now finished, stop timer and display results
   extraction_end=$(date +%s)
