@@ -3,6 +3,8 @@
 ## 3.1.4 - 2021/09/12
  * improve metadata handling in `extractmetadata_engine()` for edge case where metadata is valid, but `jq` cannot find a server name
 
+---
+
 ## 3.1.3 - 2021/09/12
  * fix bug in HTTP 200 status `if` conditions to catch rare failure with `grep` if remote endpoint is down or XML data is not fetched as expected
  * improve cleanup of temporary files for this section also
