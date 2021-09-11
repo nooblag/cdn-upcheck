@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## 3.1.3 - 2021/09/12
+ * fix bug in HTTP 200 status `if` conditions to catch rare failure with `grep` if remote endpoint is down or XML data is not fetched as expected
+ * improve cleanup of temporary files for this section also
+ * improve var handling for getting identifiers and also references to `$cdn_url` and `$cdnurl` made the latter `$build_cdnurl` to more easily distinguish it from the `$cdn_url` var which is a config setting
+
+---
+
 ## 3.1.2 - 2021/09/05
  * improve failed status info inside MP4 checking for a HTTP 200 response in the first pass: render a verbose error message
 

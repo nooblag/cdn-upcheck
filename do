@@ -238,11 +238,11 @@ extractmetadata_engine(){
     # extract the identifier from the last part of each line
     grabXML="${link##*/}"
     grabID="${grabXML%_meta.xml}"
-    # if we cannot grab the identifier, then just set it to use the full link so we don't have an empty string
+    # if we cannot grab the identifier, set this to something useless so we don't have an empty string
     if [[ -n "${grabID}" ]]; then
       identifier="${grabID}"
     else
-      identifier="${line}"
+      identifier="EMPTY"
     fi
 
     # wait a random short moment before each request to /metadata, up to ~1 second, to avoid flooding resource
@@ -264,15 +264,15 @@ extractmetadata_engine(){
             if [[ -n "${metadata}" ]]; then
             # assume `jq` extraction worked, let's build the CDN URL
               # build server ID CDN url by replacing upstream CDN structure with local CDN to end up with cdnXXXXXX.cdn-upcheckdomain.tld URLs
-              cdnurl="$(sed "s@$cdn_origin_prefix\([0-9]\{6\}\)\.$cdn_origin_domain/@$cdn_prefix\1.$cdn_domain/@" <<< "${metadata}")"
+              build_cdnurl="$(sed "s@$cdn_origin_prefix\([0-9]\{6\}\)\.$cdn_origin_domain/@$cdn_prefix\1.$cdn_domain/@" <<< "${metadata}" || true)"
               # if we get a CDN URL build it, otherwise fall back to failsafe URL cdn.cmsdomain.com
-              if [[ -n "${cdnurl}" ]]; then
+              if [[ -n "${build_cdnurl}" ]]; then
                 # build line which should now look something like https://cdn123456.cdn-upcheckdomain.tld/IDENTIFIER/ITENTIFIER_meta.xml
-                echo "https://${cdnurl}/${identifier}_meta.xml" >> "${2}"
+                echo "https://${build_cdnurl}/${identifier}_meta.xml" >> "${2}"
               else
-                # cdnurl was empty so build a failsafe URL
+                # build_cdnurl was empty so build a failsafe URL
                 echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
-                printf "\n%s" "  cdnurl empty: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
+                printf "\n%s" "  build_cdnurl empty: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
               fi
             else
               # `jq` returned empty extraction so build a failsafe URL
@@ -583,11 +583,11 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
       # extract portion from end of the line to find identifier (https://unix.stackexchange.com/questions/626432)
       grabXML="${link##*/}"
       grabID="${grabXML%_meta.xml}"
-      # if we cannot grab the identifier, then just set it to use the full link so we don't have an empty string
+      # if we cannot grab the identifier, set this to something useless so we don't have an empty string
         if [[ -n "$grabID" ]]; then
           identifier="${grabID}"
         else
-          identifier="${line}"
+          identifier="EMPTY"
         fi
 
       # extract the current server number from the URL
@@ -621,57 +621,67 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
       if [[ "${httpStatus}" == 200 ]]; then
         # identifier seems ok, so now grab metadata to see if it has been marked as high bandwidth
         # -L follow redirects, --silent, -o output XML to .xml-data-tmp file
-        curl -L --silent -o "${wd}/${data}/.${timestamp}-xml-data-tmp" "${link}" || true
-          # has it been marked as high bandwidth? use grep to search for text in the XML file that denotes that
-          if grep -q "<collection>highbandwidth</collection>" "${wd}/${data}/.${timestamp}-xml-data-tmp"; then
-            # yep, it's been marked
-            checkstream "${fail}" "High bandwidth." "${link}"
-            # send e-mail about high bandwidth removal right away
-            printf '%s has been marked as high bandwidth.\n\n' "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [High Bandwidth] ${identifier}" "${notify}"
-          else
-            # it's not marked as high bandwidth, we're all good
-            checkstream "${ok}"
-
-            # now that metadata is confirmed to be good, check the MP4 file(s) for current identifier also exist and are available too, as we expect
-            # use `ack` to search list of MP4 matches extracted from database dump for files that reference the current identifier
-            # build list of files that begin with http or https and end with .mp4
-            "${wd}/.inc/ack" --nofilter -o "https??://.*/${identifier}/.*\.mp4" "${wd}/${data}/.${timestamp}-mp4-urls-sorted" > "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
-            # check the file(s) exist
-              while read -r mp4url; do
-                # sleep a little bit before each test, up to ~3 seconds
-                intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"
-                sleep "$intwait"
-                # check the status of the current URL
-                mp4Status="$(curl -Lo /dev/null --silent --head --write-out '%{http_code}' "${mp4url}" || true)"
-
-                # if 200 then file is OK
-                if [[ "${mp4Status}" == 200 ]]; then
-                  ##printf '\t\t\t\t%s\t%s\n' "${ok}" "${mp4url}"
-                  # the metadata is good, the files are good so do nothing successfully using `true`
-                  true
-
-                # if 301 or 302 then check the redirect, if it lands somewhere expected, then we're okay
-                elif [[ "${mp4Status}" == 301 || "${mp4Status}" == 302 ]]; then
-                  printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "MP4 redirected: ${mp4url}"
-
-                # if 404, report a failure in the check stream and send an email alert right away
-                elif [[ "${mp4Status}" == 404 ]]; then
-                  printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "File not found: ${mp4url}"
-                  # send an email alert right now
-                  printf '%s may be removed.\n\n%s reported 404 error just now.\n' "${cdn_origin_url}/details/${identifier}" "${mp4url}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
-
-                # if any other error, then report failure in the check stream
-                else
-                  mp4StatusInfo="http_${mp4Status}"
-                  printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "Problem checking MP4 file: ${mp4url} ${!mp4StatusInfo}"
-                  ##printf '%s may be removed.\n\n%s reported 404 error just now.\n' "${cdn_origin_url}/details/${identifier}" "${mp4url}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
-                fi
-
-              # finished making the check list
-              done < "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
+        curl -L --silent -o "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" "${link}" || true
+          # check XML data was fetched OK
+          if [[ -s "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" ]]; then
+            # XML content exists, now `grep` it to check if identifier has been marked as high bandwidth
+            if grep -q "<collection>highbandwidth</collection>" "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp"; then
+              # yep, it's been marked
+              checkstream "${fail}" "High bandwidth." "${link}"
+              # send e-mail about high bandwidth removal right away
+              printf '%s has been marked as high bandwidth.\n\n' "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [High Bandwidth] ${identifier}" "${notify}"
               # clean up temporary file now that we're done
-              rm --force "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
-            fi
+              rm --force "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp"
+            else
+              # it's not marked as high bandwidth, we're all good
+              checkstream "${ok}"
+
+              # now that metadata is confirmed to be good, check the MP4 file(s) for current identifier also exist and are available too, as we expect
+              # use `ack` to search list of MP4 matches extracted from database dump for files that reference the current identifier
+              # build list of files that begin with http or https and end with .mp4
+              "${wd}/.inc/ack" --nofilter -o "https??://.*/${identifier}/.*\.mp4" "${wd}/${data}/.${timestamp}-mp4-urls-sorted" > "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
+              # check the file(s) exist
+                while read -r mp4url; do
+                  # sleep a little bit before each test, up to ~3 seconds
+                  intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"
+                  sleep "$intwait"
+                  # check the status of the current URL
+                  mp4Status="$(curl -Lo /dev/null --silent --head --write-out '%{http_code}' "${mp4url}" || true)"
+
+                  # if 200 then file is OK
+                  if [[ "${mp4Status}" == 200 ]]; then
+                    ##printf '\t\t\t\t%s\t%s\n' "${ok}" "${mp4url}"
+                    # the metadata is good, the files are good so do nothing successfully using `true`
+                    true
+
+                  # if 301 or 302 then check the redirect, if it lands somewhere expected, then we're okay
+                  elif [[ "${mp4Status}" == 301 || "${mp4Status}" == 302 ]]; then
+                    printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "MP4 redirected: ${mp4url}"
+
+                  # if 404, report a failure in the check stream and send an email alert right away
+                  elif [[ "${mp4Status}" == 404 ]]; then
+                    printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "File not found: ${mp4url}"
+                    # send an email alert right now
+                    printf '%s may be removed.\n\n%s reported 404 error just now.\n' "${cdn_origin_url}/details/${identifier}" "${mp4url}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
+
+                  # if any other error, then report failure in the check stream
+                  else
+                    mp4StatusInfo="http_${mp4Status}"
+                    printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "Problem checking MP4 file: ${mp4url} ${!mp4StatusInfo}"
+                    ##printf '%s may be removed.\n\n%s reported 404 error just now.\n' "${cdn_origin_url}/details/${identifier}" "${mp4url}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
+                  fi
+                # finished making the check list
+                done < "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
+                # clean up temporary file now that we're done
+                rm --force "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
+                rm --force "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp"
+              fi
+          else
+            # failed to get XML data
+            checkstream "${redo}" "Failed to get XML data." "${link}"
+            # log the link to try it again later
+            echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
+          fi
 
 
 
@@ -808,11 +818,11 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
           # get the current identifier
           grabXML="${link##*/}"
           grabID="${grabXML%_meta.xml}"
-          # if we cannot grab the identifier, then just set it to use the full link so we don't have an empty string
+          # if we cannot grab the identifier, set this to something useless so we don't have an empty string
           if [[ -n "${grabID}" ]]; then
             identifier="${grabID}"
           else
-            identifier="${line}"
+            identifier="EMPTY"
           fi
 
           # extract the current server number from the URL
