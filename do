@@ -270,7 +270,6 @@ extractmetadata_engine(){
               if [[ -n "${build_cdnurl}" ]]; then
                 # build line which should now look something like https://cdn123456.cdn-upcheckdomain.tld/IDENTIFIER/ITENTIFIER_meta.xml
                 echo "https://${build_cdnurl}/${identifier}_meta.xml" >> "${2}"
-                echo "https://${build_cdnurl}/${identifier}_meta.xml"
               else
                 # build_cdnurl was empty so build a failsafe URL
                 echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
