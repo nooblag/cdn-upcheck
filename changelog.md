@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 3.1.5 - 2021/09/12
+ * remove development output line left behind in `extractmetadata_engine()`
+
+---
+
 ## 3.1.4 - 2021/09/12
  * improve metadata handling in `extractmetadata_engine()` for edge case where metadata is valid, but `jq` cannot find a server name
 
