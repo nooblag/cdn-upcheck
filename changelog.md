@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 3.1.6 - 2021/09/21
+ * put error message before the link in MP4 file check, in HTTP 200 response 1st checkstream
+
+---
+
 ## 3.1.5 - 2021/09/12
  * remove development output line left behind in `extractmetadata_engine()`
 

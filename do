@@ -600,7 +600,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
         cdnid="${cdn_prefix}${id}"
       else
         id="-EMPTY"
-        cdnid="         "
+        cdnid="CDN-EMPTY"
       fi
 
 
@@ -835,7 +835,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
             cdnid="${cdn_prefix}${id}"
           else
             id="-EMPTY"
-            cdnid="         "
+            cdnid="CDN-EMPTY"
           fi
 
 
