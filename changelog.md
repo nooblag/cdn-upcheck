@@ -1,8 +1,14 @@
 ﻿# Changelog
 
+## 3.1.7 - 2021/09/23
+ * add null check to `jq` output in `extractmetadata_engine()`
+ * restore pretty `${cdnid}` empty handling
+
+---
+
 ## 3.1.6 - 2021/09/21
  * put error message before the link in MP4 file check, in HTTP 200 response 1st checkstream
- * Modify `${cdnid}` empty handling temporarily.
+ * modify `${cdnid}` empty handling temporarily.
 
 ---
 
