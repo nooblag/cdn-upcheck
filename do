@@ -258,29 +258,34 @@ extractmetadata_engine(){
           echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
           printf "\n%s" "  metadata empty: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
         else
+          # metadata file isn't {} so try parse stuff now
           # parse to extract server name and dir, use `tr` to trim empty lines and blank space
           server="$("${wd}/.inc/jq" --raw-output ".server" "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" | tr -d " \t\n\r" || true)"
           dir="$("${wd}/.inc/jq" --raw-output ".dir" "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" | tr -d " \t\n\r" || true)"
-          # check if we have vars to work with
-            if [[ -n "${server}" ]] && [[ -n ${dir} ]]; then
+          # check that jq extraction worked okay
+          if [[ ${server} == 'null' || ${dir} == 'null' ]]; then
+            # `jq` returned empty extraction so build a failsafe URL
+            echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
+            printf "\n%s" "  metadata null: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
+          elif [[ -n "${server}" && -n ${dir} ]]; then
             # a server name and dir is available, so build the CDN URL
-              # build server ID CDN url by replacing upstream CDN structure with local CDN to end up with cdnXXXXXX.cdn-upcheckdomain.tld URLs
-              build_cdnurl="$(sed "s@${cdn_origin_prefix}\([0-9]\{6\}\)\.${cdn_origin_domain}/@${cdn_prefix}\1.${cdn_domain}/@" <<< "${server}${dir}" || true)"
-              # if we get a CDN URL build it, otherwise fall back to failsafe URL cdn.cmsdomain.com
-              if [[ -n "${build_cdnurl}" ]]; then
-                # build line which should now look something like https://cdn123456.cdn-upcheckdomain.tld/IDENTIFIER/ITENTIFIER_meta.xml
-                echo "https://${build_cdnurl}/${identifier}_meta.xml" >> "${2}"
-              else
-                # build_cdnurl was empty so build a failsafe URL
-                echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
-                printf "\n%s" "  metadata empty: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
-              fi
+            # build server ID CDN url by replacing upstream CDN structure with local CDN to end up with cdnXXXXXX.cdn-upcheckdomain.tld URLs
+            build_cdnurl="$(sed "s@${cdn_origin_prefix}\([0-9]\{6\}\)\.${cdn_origin_domain}/@${cdn_prefix}\1.${cdn_domain}/@" <<< "${server}${dir}" || true)"
+            # if we get a CDN URL build it, otherwise fall back to failsafe URL cdn.cmsdomain.com
+            if [[ -n "${build_cdnurl}" ]]; then
+              # build line which should now look something like https://cdn123456.cdn-upcheckdomain.tld/IDENTIFIER/ITENTIFIER_meta.xml
+              echo "https://${build_cdnurl}/${identifier}_meta.xml" >> "${2}"
             else
-              # `jq` returned empty extraction so build a failsafe URL
+              # build_cdnurl was empty so build a failsafe URL
               echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
-              printf "\n%s" "  metadata failed: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
+              printf "\n%s" "  metadata empty: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
             fi
-          # done working with valid metadata
+          else
+            # `jq` returned empty extraction so build a failsafe URL
+            echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
+            printf "\n%s" "  metadata failed: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
+          fi
+        # done working with metadata that isn't empty {}
         fi
       else
         echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
@@ -600,7 +605,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
         cdnid="${cdn_prefix}${id}"
       else
         id="-EMPTY"
-        cdnid="CDN-EMPTY"
+        cdnid="         "
       fi
 
 
@@ -835,7 +840,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
             cdnid="${cdn_prefix}${id}"
           else
             id="-EMPTY"
-            cdnid="CDN-EMPTY"
+            cdnid="         "
           fi
 
 
