@@ -263,11 +263,11 @@ extractmetadata_engine(){
           server="$("${wd}/.inc/jq" --raw-output ".server" "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" | tr -d " \t\n\r" || true)"
           dir="$("${wd}/.inc/jq" --raw-output ".dir" "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" | tr -d " \t\n\r" || true)"
           # check that jq extraction worked okay
-          if [[ ${server} == 'null' || ${dir} == 'null' ]]; then
+          if [[ "${server}" == 'null' || "${dir}" == 'null' ]]; then
             # `jq` returned empty extraction so build a failsafe URL
             echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
             printf "\n%s" "  metadata null: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
-          elif [[ -n "${server}" && -n ${dir} ]]; then
+          elif [[ -n "${server}" && -n "${dir}" ]]; then
             # a server name and dir is available, so build the CDN URL
             # build server ID CDN url by replacing upstream CDN structure with local CDN to end up with cdnXXXXXX.cdn-upcheckdomain.tld URLs
             build_cdnurl="$(sed "s@${cdn_origin_prefix}\([0-9]\{6\}\)\.${cdn_origin_domain}/@${cdn_prefix}\1.${cdn_domain}/@" <<< "${server}${dir}" || true)"
