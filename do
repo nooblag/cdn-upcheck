@@ -278,7 +278,7 @@ extractmetadata_engine(){
             else
               # build_cdnurl was empty so build a failsafe URL
               echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
-              printf "\n%s" "  metadata empty: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
+              printf "\n%s" "  metadata none: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
             fi
           else
             # `jq` returned empty extraction so build a failsafe URL
