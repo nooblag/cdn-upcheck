@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 3.1.8 - 2021/10/10
+ * improve status messages in if conditions when handling/building check URL strings in `extractmetadata_engine()`
+
+---
+
 ## 3.1.7 - 2021/09/23
  * add null check to `jq` output in `extractmetadata_engine()`
  * restore pretty `${cdnid}` empty handling
