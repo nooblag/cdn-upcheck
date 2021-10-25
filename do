@@ -694,7 +694,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
       elif [[ "${httpStatus}" == 000 ]]; then
         # 000 could mean lots of things. connection refused, SSL fail, unable to resolve DNS, etc. run cURL again to try again and also find out a little more based on its exit code
         # use 2>&1 to redirect cURLs output of both STDOUT and STDERR to the $failState variable and catch cURLs exitcode
-        failState=$(curl -SsLo /dev/null "${link}" 2>&1 ) exitCode=$? || true
+        failState=$(curl --show-error --silent --location "${link}" > /dev/null 2>&1) exitCode=$? || true
         # over-ride exitCode for testing
         ##exitCode="99"
 
@@ -869,7 +869,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
           elif [[ "${httpStatus}" == 000 ]]; then
             # 000 could mean lots of things. connection refused, ssl fail, unable to resolve dns, etc. run cURL again to try again and also find out a little more based on its exit code
             # use 2>&1 to redirect cURLs output of both STDOUT and STDERR to the $failState variable and catch cURLs exitcode
-            failState=$(curl -SsLo /dev/null "${link}" 2>&1 ) exitCode=$? || true
+            failState=$(curl --show-error --silent --location "${link}" > /dev/null 2>&1) exitCode=$? || true
             # over-ride exitCode for testing
             #exitCode="99"
 
