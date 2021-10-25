@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 3.1.9 - 2021/10/25
+ * improve cURL 000 `$failState` output in first and second passes of the checkstream so cURL's stdout never interrupts the checkstream but its `$errorCode` is still usable.
+
+---
+
 ## 3.1.8 - 2021/10/10
  * improve status messages in if conditions when handling/building check URL strings in `extractmetadata_engine()`
 
