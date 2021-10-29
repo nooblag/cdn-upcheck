@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 3.1.10 - 2021/10/30
+ * improve use of `find` to clear out old files in temporary file storage by excluding current session's timestamp and removing files older than 7 days, rather than double of `$refreshtime`
+
+---
+
 ## 3.1.9 - 2021/10/25
  * improve cURL 000 `$failState` output in first and second passes of the checkstream so cURL's stdout never interrupts the checkstream but its `$errorCode` is still usable.
 
