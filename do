@@ -408,15 +408,21 @@ checkstream(){
 
 
 cleanup(){
-  printf '\nCleaning up... '
+  printf '\nCleaning up this session... '
     # clean up this session's temporary files
     find "${wd}/${data}/" -maxdepth 1 -name ".${timestamp}*" -type f -delete
-    # also clear temporary files that have not been accessed for more than twice our last refresh time (x minutes * 2), i.e. as $((refreshtime * 2))
+  printf 'done.\n'
+  printf 'Cleaning up temporary data storage... '
+    # clear temporary files that have not been accessed for more than 7 days
     # this handles cleanup in situations where cron is disrupted or a prior script aborts or fails for whatever reason
-    # find how long the timestamp var is, e.g. 12 chars ${#timestamp}, and use to build a regex line with `find` to go looking for old timestamped files and clean them up
+    # find how long the timestamp var is, e.g. 12 chars ${#timestamp}, and use to build a regex line with `find` to go looking for old timestamped files and delete them
     find_regex=".*\.[0-9]{${#timestamp}}.*"
-    # line below with $find_regex should expand to something like '.*\.[0-9]{12}.*' where 12 is the length of the timestamp
-    find "${wd}/${data}/" -maxdepth 1 -regextype posix-extended -regex "${find_regex}" -amin +$((refreshtime * 2)) -type f -delete
+    # the `find` below with above $find_regex should expand to something like '.*\.[0-9]{12}.*' where 12 is the length of the timestamps
+    # should not evaluate any files from this session as part of this cleanup by passing this session's timestamp into -not -iname
+    # prefer selecting by -atime rather than -amin because `find` says -amin calculates "from the beginning of today rather than from 24 hours ago" and that may cause problems in the overlay of days with hourly cron? not sure
+    # -atime +n = file was last accessed n*24 hours ago. "`find` figures out how many 24-hour periods ago the file was last accessed" (see `man time`)
+    # so final line should evaluate files in temp dir only, that are not from current session, that have a timestamp, and that have not been accessed for more than 7 days; matches are deleted
+    find "${wd}/${data}/" -maxdepth 1 -not -iname ".${timestamp}*" -regextype posix-extended -regex "${find_regex}" -atime +7 -type f -delete
   printf 'done.\n'
 }
 
