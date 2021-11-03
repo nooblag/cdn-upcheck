@@ -623,7 +623,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
         # over-ride link to test logic for specific HTTP error codes using httpbin.org
         ##link=http://httpbin.org/status/404
         # -L to follow redirects, -o to set output to nothing --silent removes the progress meter, --head makes a HEAD HTTP request instead of GET, --write-out prints the required status code
-        httpStatus="$(curl -Lo /dev/null --silent --head --write-out '%{http_code}' "${link}" || true)"
+        httpStatus="$(curl --location --output /dev/null --silent --head --write-out '%{http_code}' "${link}" 2> /dev/null || true)"
           # over-ride httpStatus for testing    
           ##httpStatus="522"
 
@@ -633,7 +633,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
       if [[ "${httpStatus}" == 200 ]]; then
         # identifier seems ok, so now grab metadata to see if it has been marked as high bandwidth
         # -L follow redirects, --silent, -o output XML to .xml-data-tmp file
-        curl -L --silent -o "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" "${link}" || true
+        curl --location --silent --output "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" "${link}" || true
           # check XML data was fetched OK
           if [[ -s "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" ]]; then
             # XML content exists, now `grep` it to check if identifier has been marked as high bandwidth
@@ -658,7 +658,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
                   intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"
                   sleep "$intwait"
                   # check the status of the current URL
-                  mp4Status="$(curl -Lo /dev/null --silent --head --write-out '%{http_code}' "${mp4url}" || true)"
+                  mp4Status="$(curl --location --output /dev/null --silent --head --write-out '%{http_code}' "${mp4url}" 2> /dev/null || true)"
 
                   # if 200 then file is OK
                   if [[ "${mp4Status}" == 200 ]]; then
@@ -860,7 +860,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
             # over-ride link to test logic for specific HTTP error codes using httpbin.org
             ##link=http://httpbin.org/status/404
             # -L to follow redirects, -o to set output to nothing --silent removes the progress meter, --head makes a HEAD HTTP request instead of GET, --write-out prints the required status code
-            httpStatus="$(curl -Lo /dev/null --silent --head --write-out '%{http_code}' "${link}" || true)"
+            httpStatus="$(curl --location --output /dev/null --silent --head --write-out '%{http_code}' "${link}" 2> /dev/null || true)"
               # over-ride httpStatus for testing
               ##httpStatus="530"
 
@@ -909,7 +909,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 
           elif [[ "${httpStatus}" == 302 ]]; then
             # still getting 302 temporary redirect, so check out where it's being redirected to by running cURL on it again
-            redirectEnd="$(curl -SsLo /dev/null -w "%{url_effective}" -I "${link}" || true)"
+            redirectEnd="$(curl --show-error --silent --location --output /dev/null --write-out "%{url_effective}" --head "${link}" || true)"
             # if cURL output returns normal metadata file, then assume the upload is OK
               # build that string to check it, does it end in /items/IDENTIFIER/IDENTIFIER_meta.xml
               expectedEndFile="$(sed 's#.*#items/&/&_meta.xml#' <<< "${identifier}")"
@@ -976,7 +976,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
       # set stopwatch to keep track of how long DNS update process takes, starting from now
       dns_update_start="$(date +%s)"
       printf 'Fetching CDN zone... '
-      ZONE="$(curl -sLX GET "https://api.cloudflare.com/client/v4/zones?name=${cdn_domain}&status=active" \
+      ZONE="$(curl --silent --location --proxy GET "https://api.cloudflare.com/client/v4/zones?name=${cdn_domain}&status=active" \
         -H "X-Auth-Email: ${cdn_acc_email}" \
         -H "X-Auth-Key: ${cdn_api_key}" \
         -H "Content-Type: application/json" | "${wd}/.inc/jq" -r .result[0].id || true)"
@@ -1007,7 +1007,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
                       # sleep a tiny moment first, so as to not overwhelm API (we get 1,200 requests per 5 min)
                       ##sleep 0.1
                       # fetch record data
-                      RECORD="$(curl -sLX GET "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records?name=${cdn_sub_domain}" \
+                      RECORD="$(curl --silent --location --proxy GET "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records?name=${cdn_sub_domain}" \
                         -H "X-Auth-Email: ${cdn_acc_email}" \
                         -H "X-Auth-Key: ${cdn_api_key}" \
                         -H "Content-Type: application/json" | "${wd}/.inc/jq" -r .result[0].id || true)"
@@ -1015,7 +1015,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
                       intwait="0.$(((RANDOM % 899)+100))s"; sleep "$intwait";
                       # write record data
                       if [[ "${#RECORD}" -le 10 ]]; then
-                        RECORD="$(curl -sLX POST "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records" \
+                        RECORD="$(curl --silent --location --proxy POST "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records" \
                         -H "X-Auth-Email: ${cdn_acc_email}" \
                         -H "X-Auth-Key: ${cdn_api_key}" \
                         -H "Content-Type: application/json" \
@@ -1024,7 +1024,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
                       # sleep another short moment
                       intwait="0.$(((RANDOM % 899)+100))s"; sleep "$intwait";
                       # update the record
-                      RESULT="$(curl -sLX PUT "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records/${RECORD}" \
+                      RESULT="$(curl --silent --location --proxy PUT "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records/${RECORD}" \
                       -H "X-Auth-Email: ${cdn_acc_email}" \
                       -H "X-Auth-Key: ${cdn_api_key}" \
                       -H "Content-Type: application/json" \
