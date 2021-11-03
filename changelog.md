@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 3.1.11 - 2021/11/03
+ * improve `curl` settings and error handling throughout to suppress messages in checkstream
+
+---
+
 ## 3.1.10 - 2021/10/30
  * improve use of `find` to clear out old files in temporary file storage by excluding current session's timestamp and removing files older than 7 days, rather than double of `$refreshtime`
 
