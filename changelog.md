@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 3.1.13 - 2021/11/04
+ * increase short sleep times throughout to ease off timeouts at remote end
+
+---
+
 ## 3.1.12 - 2021/11/04
  * increase sleep time to ~10 seconds during MP4 file check in first pass of checkstream to ease off timeouts at remote end
 
