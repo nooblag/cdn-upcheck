@@ -654,8 +654,8 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
               "${wd}/.inc/ack" --nofilter -o "https??://.*/${identifier}/.*\.mp4" "${wd}/${data}/.${timestamp}-mp4-urls-sorted" > "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
               # check the file(s) exist
                 while read -r mp4url; do
-                  # sleep a little bit before each test, up to ~3 seconds
-                  intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"
+                  # sleep a little bit before each test, up to ~10 seconds
+                  intwait="$(((RANDOM % 9)+1)).$(((RANDOM % 999)+1))s"
                   sleep "$intwait"
                   # check the status of the current URL
                   mp4Status="$(curl --location --output /dev/null --silent --head --write-out '%{http_code}' "${mp4url}" 2> /dev/null || true)"
