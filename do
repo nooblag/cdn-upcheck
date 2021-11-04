@@ -245,8 +245,8 @@ extractmetadata_engine(){
       identifier="EMPTY"
     fi
 
-    # wait a random short moment before each request to /metadata, up to ~1 second, to avoid flooding resource
-    intwait="0.$(((RANDOM % 899)+100))s"; sleep "$intwait";
+    # wait a random short moment before each request to /metadata, up to ~3 seconds, to avoid flooding resource
+    intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
 
     # fetch metadata from /metadata JSON and save it to temp file for further parsing
     curl --silent "${cdn_origin_url}/metadata/${identifier}" > "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" || true
@@ -616,8 +616,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 
 
       # sleep a little bit before each test, up to ~3 seconds
-      intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"
-      sleep "$intwait"
+      intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
 
       # use cURL to check the upload link
         # over-ride link to test logic for specific HTTP error codes using httpbin.org
@@ -631,6 +630,8 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 
       # now the logic that does things depending on status returned
       if [[ "${httpStatus}" == 200 ]]; then
+        # sleep a little bit before next cURL request, up to ~3 seconds
+        intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
         # identifier seems ok, so now grab metadata to see if it has been marked as high bandwidth
         # -L follow redirects, --silent, -o output XML to .xml-data-tmp file
         curl --location --silent --output "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" "${link}" || true
@@ -654,9 +655,8 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
               "${wd}/.inc/ack" --nofilter -o "https??://.*/${identifier}/.*\.mp4" "${wd}/${data}/.${timestamp}-mp4-urls-sorted" > "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
               # check the file(s) exist
                 while read -r mp4url; do
-                  # sleep a little bit before each test, up to ~10 seconds
-                  intwait="$(((RANDOM % 9)+1)).$(((RANDOM % 999)+1))s"
-                  sleep "$intwait"
+                  # sleep a little bit before each test, up to ~5 seconds
+                  intwait="$(((RANDOM % 4)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
                   # check the status of the current URL
                   mp4Status="$(curl --location --output /dev/null --silent --head --write-out '%{http_code}' "${mp4url}" 2> /dev/null || true)"
 
@@ -698,6 +698,8 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 
 
       elif [[ "${httpStatus}" == 000 ]]; then
+        # sleep a little bit before next cURL request, up to ~3 seconds
+        intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
         # 000 could mean lots of things. connection refused, SSL fail, unable to resolve DNS, etc. run cURL again to try again and also find out a little more based on its exit code
         # use 2>&1 to redirect cURLs output of both STDOUT and STDERR to the $failState variable and catch cURLs exitcode
         failState=$(curl --show-error --silent --location "${link}" > /dev/null 2>&1) exitCode=$? || true
@@ -853,8 +855,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
           # now actually do the rechecking
 
           # sleep a little bit before each test, up to ~3 seconds
-          intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"
-          sleep "$intwait"
+          intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
 
           # use cURL to check the upload link
             # over-ride link to test logic for specific HTTP error codes using httpbin.org
@@ -873,6 +874,8 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 
 
           elif [[ "${httpStatus}" == 000 ]]; then
+            # sleep a little bit before next cURL request, up to ~3 seconds
+            intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
             # 000 could mean lots of things. connection refused, ssl fail, unable to resolve dns, etc. run cURL again to try again and also find out a little more based on its exit code
             # use 2>&1 to redirect cURLs output of both STDOUT and STDERR to the $failState variable and catch cURLs exitcode
             failState=$(curl --show-error --silent --location "${link}" > /dev/null 2>&1) exitCode=$? || true
@@ -908,6 +911,8 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 
 
           elif [[ "${httpStatus}" == 302 ]]; then
+            # sleep a little bit before next cURL request, up to ~3 seconds
+            intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
             # still getting 302 temporary redirect, so check out where it's being redirected to by running cURL on it again
             redirectEnd="$(curl --show-error --silent --location --output /dev/null --write-out "%{url_effective}" --head "${link}" || true)"
             # if cURL output returns normal metadata file, then assume the upload is OK
@@ -1004,14 +1009,14 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
                     cdn_record_data="${ip}" # IP Address
 
                       # now write our DNS to cloudflare zone
-                      # sleep a tiny moment first, so as to not overwhelm API (we get 1,200 requests per 5 min)
-                      ##sleep 0.1
+                      # sleep one second first, so as to not overwhelm API (we get 1,200 requests per 5 min)
+                      sleep 1
                       # fetch record data
                       RECORD="$(curl --silent --location --proxy GET "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records?name=${cdn_sub_domain}" \
                         -H "X-Auth-Email: ${cdn_acc_email}" \
                         -H "X-Auth-Key: ${cdn_api_key}" \
                         -H "Content-Type: application/json" | "${wd}/.inc/jq" -r .result[0].id || true)"
-                      # sleep a short moment
+                      # sleep another short moment
                       intwait="0.$(((RANDOM % 899)+100))s"; sleep "$intwait";
                       # write record data
                       if [[ "${#RECORD}" -le 10 ]]; then
