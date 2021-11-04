@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 3.1.12 - 2021/11/04
+ * increase sleep time to ~10 seconds during MP4 file check in first pass of checkstream to ease off timeouts at remote end
+
+---
+
 ## 3.1.11 - 2021/11/03
  * improve `curl` settings and error handling throughout to suppress messages in checkstream
 
