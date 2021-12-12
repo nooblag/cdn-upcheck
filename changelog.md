@@ -1,4 +1,10 @@
 ﻿# Changelog
+ 
+ 
+## 3.1.14 - 2021/12/13
+ * fix stray cURL output in 2nd pass checkstream for 302 returned status.
+
+---
 
 ## 3.1.13 - 2021/11/04
  * increase short sleep times throughout to ease off timeouts at remote end
