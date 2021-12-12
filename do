@@ -914,7 +914,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
             # sleep a little bit before next cURL request, up to ~3 seconds
             intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
             # still getting 302 temporary redirect, so check out where it's being redirected to by running cURL on it again
-            redirectEnd="$(curl --show-error --silent --location --output /dev/null --write-out "%{url_effective}" --head "${link}" || true)"
+            redirectEnd="$(curl --show-error --silent --location --output /dev/null --write-out "%{url_effective}" --head "${link}" 2> /dev/null || true)"
             # if cURL output returns normal metadata file, then assume the upload is OK
               # build that string to check it, does it end in /items/IDENTIFIER/IDENTIFIER_meta.xml
               expectedEndFile="$(sed 's#.*#items/&/&_meta.xml#' <<< "${identifier}")"
