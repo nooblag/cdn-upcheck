@@ -680,7 +680,7 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
                   else
                     mp4StatusInfo="http_${mp4Status}"
                     printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "Problem checking MP4 file: ${!mp4StatusInfo} ${mp4url}"
-                    ##printf '%s may be removed.\n\n%s reported 404 error just now.\n' "${cdn_origin_url}/details/${identifier}" "${mp4url}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
+                    ##printf '%s may be removed.\n\n%s reported unknown error just now.\n' "${cdn_origin_url}/details/${identifier}" "${mp4url}" | mail -s "cdn-upcheck [000] ${identifier}" "${notify}"
                   fi
                 # finished making the check list
                 done < "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
@@ -748,17 +748,21 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 
       elif [[ "${httpStatus}" == 403 ]]; then
         # 403, item is currently forbidden. being taken down right now?
-        checkstream "${fail}" "${link}"
+        checkstream "${redo}" "${link}"
+        # check again!
+        echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
         # send an e-mail about removal right away
-        printf '%s may be removed.\n\n%s reported 403 error just now.\n' "${cdn_origin_url}/details/${identifier}" "${link}" | mail -s "cdn-upcheck [403] ${identifier}" "${notify}"
+        ##printf '%s may be removed.\n\n%s reported 403 error just now.\n' "${cdn_origin_url}/details/${identifier}" "${link}" | mail -s "cdn-upcheck [403] ${identifier}" "${notify}"
 
 
 
       elif [[ "${httpStatus}" == 404 ]]; then
         # 404, has been removed
-        checkstream "${fail}" "${link}"
+        checkstream "${redo}" "${link}"
+        # check again!
+        echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
         # send an e-mail about removal right away
-        printf '%s may be removed.\n\n%s reported 404 error just now.\n' "${cdn_origin_url}/details/${identifier}" "${link}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
+        ##printf '%s may be removed.\n\n%s reported 404 error just now.\n' "${cdn_origin_url}/details/${identifier}" "${link}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
 
 
       else
