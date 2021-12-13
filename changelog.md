@@ -1,6 +1,10 @@
 ﻿# Changelog
  
- 
+## 3.1.15 - 2021/12/14
+ * improve 404 handling in 1st pass checkstream to try links again later (reduce false email alerts and also refresh metadata)
+
+---
+
 ## 3.1.14 - 2021/12/13
  * fix stray cURL output in 2nd pass checkstream for 302 returned status.
 
