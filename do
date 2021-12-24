@@ -497,7 +497,10 @@ fi
 
 # check if lockfile exists for metadata extraction and if prior script is busy then stop everything/skip this check
 if [[ -f "/run/lock/.cdn-upcheck-metadata.lock" ]]; then
-  echo "*** ABORT *** Building check list still running from prior cronjob. Stopping."
+  # find time lockfile was modified
+  lockfile_time="$(date -r "/run/lock/.cdn-upcheck-metadata.lock" +%l:%M%P)"
+  # remove any leading space i.e. [:blank:] with perameter expansion
+  echo "*** ABORT *** Building check list still running from ${lockfile_time%%[^[:blank:]]*}. Stopping."
   cleanup
   exit 1
 fi
