@@ -497,10 +497,12 @@ fi
 
 # check if lockfile exists for metadata extraction and if prior script is busy then stop everything/skip this check
 if [[ -f "/run/lock/.cdn-upcheck-metadata.lock" ]]; then
-  # find time lockfile was modified
-  lockfile_time="$(date -r "/run/lock/.cdn-upcheck-metadata.lock" +%l:%M%P)"
-  # remove any leading space i.e. [:blank:] with perameter expansion
-  echo "*** ABORT *** Building check list still running from ${lockfile_time%%[^[:blank:]]*}. Stopping."
+  # find time lockfile was modified; %l %M %P format renders as 9:30pm for example
+  lockfiletime="$(date -r "/run/lock/.cdn-upcheck-metadata.lock" +%l:%M%P)"
+  # remove leading space from the date output using parameter expansion (https://wiki.bash-hackers.org/syntax/pe)
+  removeleadingspace="${lockfiletime%%[^[:blank:]]*}"
+  lockfiletime="${lockfiletime#"${removeleadingspace}"}"
+  echo "*** ABORT *** Building check list still running from ${lockfiletime}. Stopping."
   cleanup
   exit 1
 fi
