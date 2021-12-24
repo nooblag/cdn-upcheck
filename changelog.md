@@ -1,4 +1,9 @@
 ﻿# Changelog
+
+## 3.1.16 - 2021/12/24
+ * add the start of lockfile to notification when aborting from duplicate build check list
+
+---
  
 ## 3.1.15 - 2021/12/14
  * improve 404 handling in 1st pass checkstream to try links again later (reduce false email alerts and also refresh metadata)
