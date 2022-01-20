@@ -260,8 +260,9 @@ extractmetadata_engine(){
         else
           # metadata file isn't {} so try parse stuff now
           # parse to extract server name and dir, use `tr` to trim empty lines and blank space
-          server="$("${wd}/.inc/jq" --raw-output ".server" "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" | tr -d " \t\n\r" || true)"
-          dir="$("${wd}/.inc/jq" --raw-output ".dir" "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" | tr -d " \t\n\r" || true)"
+          # send jq STDERR to /dev/null so its output is not captured in the string and tested against later
+          server="$("${wd}/.inc/jq" --raw-output ".server" "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" 2> /dev/null | tr -d " \t\n\r" || true)"
+          dir="$("${wd}/.inc/jq" --raw-output ".dir" "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" 2> /dev/null | tr -d " \t\n\r" || true)"
           # check that jq extraction worked okay
           if [[ "${server}" == 'null' || "${dir}" == 'null' ]]; then
             # `jq` returned empty extraction so build a failsafe URL
