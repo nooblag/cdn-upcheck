@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 3.1.17 - 2022/01/21
+ * send `jq` STDERR to `/dev/null` in `extractmetadata_engine()`
+
+---
+
 ## 3.1.16 - 2021/12/24
  * add the start of lockfile to notification when aborting from duplicate build check list
 
