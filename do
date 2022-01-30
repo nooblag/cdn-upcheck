@@ -465,6 +465,338 @@ emergency_cleanup(){
 }
 
 
+cdn-upcheck() {
+  # common flow for checking and handling
+  # assumes $filename has been set
+
+  # determine 1st or 2nd pass checking
+  # if pass is not set for whatever reason, assume 1st pass conditions so we don't have an empty string
+  if [[ -z "${pass}" ]]; then
+    pass=1
+  else
+    pass="${1}" # first argument
+  fi
+
+  # read each line from $filename, -r ignores slashes so we don't read them as escape characters
+  while read -r line; do
+    link="${line}"
+    # extract portion from end of the line to find identifier (https://unix.stackexchange.com/questions/626432)
+    grabXML="${link##*/}"
+    grabID="${grabXML%_meta.xml}"
+    # if we cannot grab the identifier, set this to something useless so we don't have an empty string
+      if [[ -n "$grabID" ]]; then
+        identifier="${grabID}"
+      else
+        identifier="EMPTY"
+      fi
+
+    # extract the current server number from the URL
+    # use `awk` to get the subdomain(s) part of the CDN URL and then `grep` only the part with 6 digits as the ID
+    # add `true` to always exit successfully even if we don't get an ID match
+    id="$(awk -F '/' '{print $3}' <<< "${link}" | grep --only-matching '[0-9]\{6\}' || true)"
+    # if we cannot grab the CDN ID, then just set it to use a dummy so we don't have an empty string
+    if [[ -n "${id}" ]]; then
+      cdnid="${cdn_prefix}${id}"
+    else
+      id="-EMPTY"
+      cdnid="         "
+    fi
+
+
+    # now actually do the checking
+
+    # sleep a little bit before each test, up to ~3 seconds
+    intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
+
+    # use cURL to check the upload link
+      # over-ride link to test logic for specific HTTP error codes using httpbin.org
+      ##link=http://httpbin.org/status/404
+      # -L to follow redirects, -o to set output to nothing --silent removes the progress meter, --head makes a HEAD HTTP request instead of GET, --write-out prints the required status code
+      httpStatus="$(curl --location --output /dev/null --silent --head --write-out '%{http_code}' "${link}" 2> /dev/null || true)"
+        # over-ride httpStatus for testing    
+        ##httpStatus="522"
+
+
+
+    # logic that does things depending on status returned
+
+    if [[ "${httpStatus}" == 200 ]]; then
+      # sleep a little bit before next cURL request, up to ~3 seconds
+      intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
+      # identifier seems ok, so now grab metadata to see if it has been marked as high bandwidth
+      # -L follow redirects, --silent, -o output XML to .xml-data-tmp file
+      curl --location --silent --output "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" "${link}" || true
+        # check XML data was fetched OK
+        if [[ -s "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" ]]; then
+          # XML content exists, now `grep` it to check if identifier has been marked as high bandwidth
+          if grep -q "<collection>highbandwidth</collection>" "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp"; then
+            # yep, it's been marked
+            checkstream "${fail}" "High bandwidth." "${link}"
+            # send e-mail about high bandwidth removal right away
+            printf '%s has been marked as high bandwidth.\n\n' "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [High Bandwidth] ${identifier}" "${notify}"
+            # clean up temporary file now that we're done
+            rm --force "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp"
+          else
+            # it's not marked as high bandwidth, we're all good
+            checkstream "${ok}"
+
+            # now that metadata is confirmed to be good, check the MP4 file(s) for current identifier also exist and are available too, as we expect
+            # use `ack` to search list of MP4 matches extracted from database dump for files that reference the current identifier
+            # build list of files that begin with http or https and end with .mp4
+            "${wd}/.inc/ack" --nofilter -o "https??://.*/${identifier}/.*\.mp4" "${wd}/${data}/.${timestamp}-mp4-urls-sorted" > "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
+            # check the file(s) exist
+              while read -r mp4url; do
+                # sleep a little bit before each test, up to ~5 seconds
+                intwait="$(((RANDOM % 4)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
+                # check the status of the current URL
+                mp4Status="$(curl --location --output /dev/null --silent --head --write-out '%{http_code}' "${mp4url}" 2> /dev/null || true)"
+
+                # if 200 then file is OK
+                if [[ "${mp4Status}" == 200 ]]; then
+                  ##printf '\t\t\t\t%s\t%s\n' "${ok}" "${mp4url}"
+                  # the metadata is good, the files are good so do nothing successfully using `true`
+                  true
+
+                # if 301 or 302 then mention a warning
+                elif [[ "${mp4Status}" == 301 || "${mp4Status}" == 302 ]]; then
+                  printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "MP4 redirected: ${mp4url}"
+
+                # if 404, report a failure in the check stream, but confirm it in a 2nd pass before sending an email alert
+                elif [[ "${mp4Status}" == 404 ]]; then
+                  # on 1st pass
+                  if [[ "${pass}" == 1 ]]; then
+                    # report redo in checkstream
+                    printf '\t\t\t\t%s  %s  %s\n' "${redo}" "${mp4Status}" "File not found: ${mp4url}"
+                    # add current identifier to 2nd pass check
+                    echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
+                  fi
+                  # on 2nd pass
+                  if [[ "${pass}" == 2 ]]; then
+                    # report failure in check stream
+                    printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "File not found: ${mp4url}"
+                    # send email alert right now
+                    printf '%s file could not be found.%s\n\n' "${mp4url}" "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
+                  fi
+
+                # if any other error, then report failure in the check stream
+                else
+                  mp4StatusInfo="http_${mp4Status}"
+                  # on 1st pass
+                  if [[ "${pass}" == 1 ]]; then
+                    # report warning in checkstream
+                    printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "Problem checking MP4 file: ${!mp4StatusInfo} ${mp4url}"
+                    # add current identifier to 2nd pass check
+                    echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
+                  fi
+                  # on 2nd pass
+                  if [[ "${pass}" == 2 ]]; then
+                    # report failure in check stream
+                    printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "Problem checking MP4 file: ${!mp4StatusInfo} ${mp4url}"
+                    # send email alert
+                    printf '%s could not be accessed, %s error: %s\n\n%s\n' "${mp4url}" "${mp4Status}" "${!mp4StatusInfo}" "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
+                  fi
+                fi
+
+              # finished making the check list
+              done < "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
+              # clean up temporary file now that we're done
+              rm --force "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
+              rm --force "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp"
+            fi
+        else
+          # failed to get XML data
+          if [[ "${pass}" == 1 ]]; then
+            checkstream "${redo}" "Failed to get XML data." "${link}"
+            # log the link to try it again later
+            echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
+          fi
+          if [[ "${pass}" == 1 ]]; then
+            checkstream "${fail}" "Failed to get XML data." "${link}"
+          fi
+        fi
+
+
+
+    elif [[ "${httpStatus}" == 000 ]]; then
+      # sleep a little bit before next cURL request, up to ~3 seconds
+      intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
+      # 000 could mean lots of things. connection refused, SSL fail, unable to resolve DNS, etc. run cURL again to try again and also find out a little more based on its exit code
+      # use 2>&1 to redirect cURLs output of both STDOUT and STDERR to the $failState variable and catch cURLs exitcode
+      failState=$(curl --show-error --silent --location "${link}" > /dev/null 2>&1) exitCode=$? || true
+      # over-ride exitCode for testing
+      ##exitCode="99"
+
+      # parse different actions depending on type of error. common ones are:
+      if [[ $exitCode == 0 ]]; then
+        # 0 is paradoxically all fine, proceed as usual, i.e. do nothing now
+        checkstream "${ok}" "cURL returned 0 as an exitcode, but otherwise OK."
+
+      elif [[ $exitCode == 6 ]]; then
+        # 6 is couldn't resolve host
+          # on 1st pass
+          if [[ "${pass}" == 1 ]]; then
+            checkstream "${redo}" "Couldn't resolve host." "${link}"
+            # log the link to try it again later
+            echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
+          fi
+          # on 2nd pass
+          if [[ "${pass}" == 2 ]]; then
+            checkstream "${fail}" "Couldn't resolve host." "${link}"
+            # log this identifier in list of 000 fails to send bulk at end
+            echo "${cdn_origin_url}/details/${identifier}" >> "${wd}/${data}/.${timestamp}-errors-000-6"
+            # trigger update CDN DNS for this item
+            buildCDNrefreshlist
+          fi
+
+
+      elif [[ $exitCode == 7 ]]; then
+        # 7 is connection refused
+          # on 1st pass
+          if [[ "${pass}" == 1 ]]; then
+            checkstream "${redo}" "Connection Refused." "${link}"
+            # log the link to try it again later
+            echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
+          fi
+          # on 2nd pass
+          if [[ "${pass}" == 2 ]]; then
+            checkstream "${fail}" "Connection Refused." "${link}"
+            # log this identifier in list of 000 fails to send bulk at end
+            echo "${cdn_origin_url}/details/${identifier}" >> "${wd}/${data}/.${timestamp}-errors-000-7"
+          fi
+
+
+      else
+        # error could be all sorts of other things, and can add more tests here, but for now we'll catch all
+          # on 1st pass
+            if [[ "${pass}" == 1 ]]; then
+              checkstream "${redo}" "${exitCode}: ${failState}" "${link}"
+            # log the link to try it again later
+            echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
+            fi
+            # on 2nd pass
+            if [[ "${pass}" == 2 ]]; then
+              checkstream "${fail}" "${exitCode}: ${failState}" "${link}"
+              # log this identifier in list of 000 fails
+              checkstream "${fail}" "${exitCode}: ${failState}" "${link}" >> "${wd}/${data}/.${timestamp}-errors-000"
+            fi
+      fi
+
+
+
+
+    elif [[ "${httpStatus}" == 302 ]]; then
+      # 302 temporary redirects are probably okay, but identifier again at the end just to be sure it's still up (hopefully 200) by the time we get there
+          # on 1st pass
+            if [[ "${pass}" == 1 ]]; then
+              checkstream "${redo}" "Redirected." "${link}"
+              # log the link to try it again later
+              echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
+            fi
+            # on 2nd pass
+            if [[ "${pass}" == 2 ]]; then
+              # sleep a little bit before next cURL request, up to ~3 seconds
+              intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
+              # still getting 302 temporary redirect, so check out where it's being redirected to by running cURL on it again
+              redirectEnd="$(curl --show-error --silent --location --output /dev/null --write-out "%{url_effective}" --head "${link}" 2> /dev/null || true)"
+              # if cURL output returns normal metadata file, then assume the upload is OK
+               # build that string to check it, does it end in /items/IDENTIFIER/IDENTIFIER_meta.xml
+               expectedEndFile="$(sed 's#.*#items/&/&_meta.xml#' <<< "${identifier}")"
+               if [[ "$redirectEnd" == *"$expectedEndFile" ]]; then
+                 checkstream "${ok}" "302 again, but destination result is OK."
+               else
+                 checkstream "${fail}" "302 redirected to somewhere unexpected." "${link}"
+                 # write this error to log file
+                 checkstream "${fail}" "302 redirected to somewhere unexpected." "${link}" >> "${wd}/${data}/.${timestamp}-errors-302"
+               fi
+            fi
+
+
+
+
+    elif [[ "${httpStatus}" == 403 ]]; then
+      # 403, item is currently forbidden. being taken down right now?
+        # on 1st pass
+        if [[ "${pass}" == 1 ]]; then
+          checkstream "${redo}" "${link}"
+          # log the link to try it again later
+          echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
+        fi
+        # on 2nd pass
+        if [[ "${pass}" == 2 ]]; then
+          checkstream "${fail}" "${link}"
+          # send an e-mail about removal right away
+          printf '%s may be removed.\n\n%s reported 403 error just now.' "${cdn_origin_url}/details/${identifier}" "${link}" | mail -s "cdn-upcheck [403] ${identifier}" "${notify}"
+        fi
+
+
+
+
+    elif [[ "${httpStatus}" == 404 ]]; then
+      # 404, has been removed
+        # on 1st pass
+        if [[ "${pass}" == 1 ]]; then
+          checkstream "${redo}" "${link}"
+          # log the link to try it again later
+          echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
+        fi
+        # on 2nd pass
+        if [[ "${pass}" == 2 ]]; then
+          checkstream "${fail}" "${link}"
+          # send an e-mail about removal right away
+          printf '%s may be removed.\n\n%s reported 404 error just now.' "${cdn_origin_url}/details/${identifier}" "${link}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
+        fi
+
+
+
+      elif [[ "${httpStatus}" == 521 || "${httpStatus}" == 523 || "${httpStatus}" == 530 ]]; then
+        # 521 Cloudflare says the web server is down
+        # 523 Cloudflare says origin unreachable
+        # 530 origin DNS error
+        httpStatusInfo="http_${httpStatus}"
+          # on 1st pass
+          if [[ "${pass}" == 1 ]]; then
+            checkstream "${redo}" "${!httpStatusInfo}" "${link}"
+            # log the link to try it again later
+            echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
+          fi
+          # on 2nd pass
+          if [[ "${pass}" == 2 ]]; then
+            # alert about failure
+            checkstream "${fail}" "${!httpStatusInfo}" "${link}"
+            # write this fail to log
+            checkstream "${fail}" "${!httpStatusInfo}" "${link}" >> "${wd}/${data}/.${timestamp}-errors-range"
+            # trigger update CDN DNS for this item
+            buildCDNrefreshlist
+          fi
+
+
+
+    else
+      # catch codes not defined above
+      httpStatusInfo="http_${httpStatus}"
+        # on 1st pass
+          if [[ "${pass}" == 1 ]]; then
+            # problem could be temporary so warn about this identifier now, but recheck at the end
+            # do this to avoid unnecessary e-mail alerts if something is only temporarily down
+            checkstream "${redo}" "${!httpStatusInfo}" "${link}"
+            # log the link to try it again later
+            echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
+          fi
+          # on 2nd pass
+          if [[ "${pass}" == 2 ]]; then
+            # this must be long downtime. let's alert and if we have a message defined above that matches the current error, show that to explain what we know
+            checkstream "${fail}" "${!httpStatusInfo}" "${link}"
+            # write this fail to log
+            checkstream "${fail}" "${!httpStatusInfo}" "${link}" >> "${wd}/${data}/.${timestamp}-errors-range"
+          fi
+    fi
+  # we're done, now on to the next identifier so increase the loop count
+  counter=$((counter +1))
+  done < "${filename}"
+}
+
+
+
 
 
 ### RUNTIME GUTS ###
@@ -592,203 +924,11 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 
 
 
+
 # now actually do the checking.
 # FIRST PASS
-  # if we get a 404, report it. if it's up (200), do a check to look for high-bandwidth tag in the metadata cos that means it's actually down.
-    # read each line from .xml-urls-sorted, -r ignores slashes so we don't read them as escape characters
-    while read -r line; do
-      link="${line}"
-      # extract portion from end of the line to find identifier (https://unix.stackexchange.com/questions/626432)
-      grabXML="${link##*/}"
-      grabID="${grabXML%_meta.xml}"
-      # if we cannot grab the identifier, set this to something useless so we don't have an empty string
-        if [[ -n "$grabID" ]]; then
-          identifier="${grabID}"
-        else
-          identifier="EMPTY"
-        fi
-
-      # extract the current server number from the URL
-      # use `awk` to get the subdomain(s) part of the CDN URL and then `grep` only the part with 6 digits as the ID
-      # add `true` to always exit successfully even if we don't get an ID match
-      id="$(awk -F '/' '{print $3}' <<< "${link}" | grep --only-matching '[0-9]\{6\}' || true)"
-      # if we cannot grab the CDN ID, then just set it to use a dummy so we don't have an empty string
-      if [[ -n "${id}" ]]; then
-        cdnid="${cdn_prefix}${id}"
-      else
-        id="-EMPTY"
-        cdnid="         "
-      fi
-
-
-      # sleep a little bit before each test, up to ~3 seconds
-      intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
-
-      # use cURL to check the upload link
-        # over-ride link to test logic for specific HTTP error codes using httpbin.org
-        ##link=http://httpbin.org/status/404
-        # -L to follow redirects, -o to set output to nothing --silent removes the progress meter, --head makes a HEAD HTTP request instead of GET, --write-out prints the required status code
-        httpStatus="$(curl --location --output /dev/null --silent --head --write-out '%{http_code}' "${link}" 2> /dev/null || true)"
-          # over-ride httpStatus for testing    
-          ##httpStatus="522"
-
-
-
-      # now the logic that does things depending on status returned
-      if [[ "${httpStatus}" == 200 ]]; then
-        # sleep a little bit before next cURL request, up to ~3 seconds
-        intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
-        # identifier seems ok, so now grab metadata to see if it has been marked as high bandwidth
-        # -L follow redirects, --silent, -o output XML to .xml-data-tmp file
-        curl --location --silent --output "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" "${link}" || true
-          # check XML data was fetched OK
-          if [[ -s "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" ]]; then
-            # XML content exists, now `grep` it to check if identifier has been marked as high bandwidth
-            if grep -q "<collection>highbandwidth</collection>" "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp"; then
-              # yep, it's been marked
-              checkstream "${fail}" "High bandwidth." "${link}"
-              # send e-mail about high bandwidth removal right away
-              printf '%s has been marked as high bandwidth.\n\n' "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [High Bandwidth] ${identifier}" "${notify}"
-              # clean up temporary file now that we're done
-              rm --force "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp"
-            else
-              # it's not marked as high bandwidth, we're all good
-              checkstream "${ok}"
-
-              # now that metadata is confirmed to be good, check the MP4 file(s) for current identifier also exist and are available too, as we expect
-              # use `ack` to search list of MP4 matches extracted from database dump for files that reference the current identifier
-              # build list of files that begin with http or https and end with .mp4
-              "${wd}/.inc/ack" --nofilter -o "https??://.*/${identifier}/.*\.mp4" "${wd}/${data}/.${timestamp}-mp4-urls-sorted" > "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
-              # check the file(s) exist
-                while read -r mp4url; do
-                  # sleep a little bit before each test, up to ~5 seconds
-                  intwait="$(((RANDOM % 4)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
-                  # check the status of the current URL
-                  mp4Status="$(curl --location --output /dev/null --silent --head --write-out '%{http_code}' "${mp4url}" 2> /dev/null || true)"
-
-                  # if 200 then file is OK
-                  if [[ "${mp4Status}" == 200 ]]; then
-                    ##printf '\t\t\t\t%s\t%s\n' "${ok}" "${mp4url}"
-                    # the metadata is good, the files are good so do nothing successfully using `true`
-                    true
-
-                  # if 301 or 302 then check the redirect, if it lands somewhere expected, then we're okay
-                  elif [[ "${mp4Status}" == 301 || "${mp4Status}" == 302 ]]; then
-                    printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "MP4 redirected: ${mp4url}"
-
-                  # if 404, report a failure in the check stream, but confirm it in a 2nd pass before sending an email alert
-                  elif [[ "${mp4Status}" == 404 ]]; then
-                    printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "File not found: ${mp4url}"
-                    # add current identifier to 2nd pass check
-                    echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
-
-                  # if any other error, then report failure in the check stream
-                  else
-                    mp4StatusInfo="http_${mp4Status}"
-                    printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "Problem checking MP4 file: ${!mp4StatusInfo} ${mp4url}"
-                    # add current identifier to 2nd pass check
-                    echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
-                  fi
-                # finished making the check list
-                done < "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
-                # clean up temporary file now that we're done
-                rm --force "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
-                rm --force "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp"
-              fi
-          else
-            # failed to get XML data
-            checkstream "${redo}" "Failed to get XML data." "${link}"
-            # log the link to try it again later
-            echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
-          fi
-
-
-
-      elif [[ "${httpStatus}" == 000 ]]; then
-        # sleep a little bit before next cURL request, up to ~3 seconds
-        intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
-        # 000 could mean lots of things. connection refused, SSL fail, unable to resolve DNS, etc. run cURL again to try again and also find out a little more based on its exit code
-        # use 2>&1 to redirect cURLs output of both STDOUT and STDERR to the $failState variable and catch cURLs exitcode
-        failState=$(curl --show-error --silent --location "${link}" > /dev/null 2>&1) exitCode=$? || true
-        # over-ride exitCode for testing
-        ##exitCode="99"
-
-        # parse different actions depending on type of error. common ones are:
-        if [[ $exitCode == 0 ]]; then
-          # 0 is paradoxically all fine, proceed as usual, i.e. do nothing now
-          checkstream "${ok}" "cURL returned 0 as an exitcode, but otherwise OK."
-
-        elif [[ $exitCode == 6 ]]; then
-          # 6 is couldn't resolve host
-          checkstream "${redo}" "Couldn't resolve host." "${link}"
-          # log the link to try it again later
-          echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
-
-        elif [[ $exitCode == 7 ]]; then
-          # 7 is connection refused
-          checkstream "${redo}" "Connection Refused." "${link}"
-          # log the link to try it again later
-          echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
-
-        elif [[ $exitCode == 35 ]]; then
-          # 35, unknown SSL protocol error in connection to host
-          # could be temporary, so try it again later to be sure
-          checkstream "${redo}" "Unknown SSL protocol error." "${link}"
-          # log the link to try it again later
-          echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
-          
-        else
-          # error could be all sorts of other things, and can add more tests here, but for now we'll catch all
-          checkstream "${redo}" "${exitCode}: ${failState}" "${link}"
-          # log the link to try it again later
-          echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
-        fi
-
-
-
-      elif [[ "${httpStatus}" == 302 ]]; then
-        # 302 temporary redirects are probably okay, but check them again at the end just to be sure they're still up in some way (hopefully 200) by the time we get there
-        checkstream "${redo}" "Redirected." "${link}"
-        echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
-
-
-
-      elif [[ "${httpStatus}" == 403 ]]; then
-        # 403, item is currently forbidden. being taken down right now?
-        checkstream "${redo}" "${link}"
-        # check again!
-        echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
-        # send an e-mail about removal right away
-        ##printf '%s may be removed.\n\n%s reported 403 error just now.\n' "${cdn_origin_url}/details/${identifier}" "${link}" | mail -s "cdn-upcheck [403] ${identifier}" "${notify}"
-
-
-
-      elif [[ "${httpStatus}" == 404 ]]; then
-        # 404, has been removed
-        checkstream "${redo}" "${link}"
-        # check again!
-        echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
-        # send an e-mail about removal right away
-        ##printf '%s may be removed.\n\n%s reported 404 error just now.\n' "${cdn_origin_url}/details/${identifier}" "${link}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
-
-
-      else
-        # catch codes not defined above
-        # most errors in this range (probably 5xx+) are problems with remote server outside of our control.
-        # problem could be temporary so log this upload as problematic for now, and try it again after this loop is done. if still down at the end of all these checks, we'll alert then.
-        # do this to avoid unnecessary e-mail alerts if something is only temporarily down
-        httpStatusInfo="http_${httpStatus}"
-        checkstream "${redo}" "${!httpStatusInfo}" "${link}"
-        echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
-      fi
-
-
-    # we're done, now on to the next identifier so increase the loop count
-    counter=$((counter +1))
-    done < "${filename}"
-  printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
-
-
+cdn-upcheck 1
+printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
 
 
 
@@ -835,208 +975,8 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
       # now re-check from renewed list
       filename="${wd}/${data}/.${timestamp}-renewed-xml-urls"
       printf 'Re-checking %s identifiers.\n\n' "$totallines"
-      # read each line from .renewed-xml-urls, -r ignores slashes so we don't read them as escape characters
-        while read -r line; do
-          # there's a new link to process on each line
-          link="${line}"
-
-          # get the current identifier
-          grabXML="${link##*/}"
-          grabID="${grabXML%_meta.xml}"
-          # if we cannot grab the identifier, set this to something useless so we don't have an empty string
-          if [[ -n "${grabID}" ]]; then
-            identifier="${grabID}"
-          else
-            identifier="EMPTY"
-          fi
-
-          # extract the current server number from the URL
-          # use `awk` to get the subdomain(s) part of the CDN URL and then `grep` only the part with 6 digits as the ID
-          # add `true` to always exit successfully even if we don't get an ID match
-          id="$(awk -F '/' '{print $3}' <<< "${link}" | grep --only-matching '[0-9]\{6\}' || true)"
-          # if we cannot grab the CDN ID, then just set it to use a dummy so we don't have an empty string
-          if [[ -n "${id}" ]]; then
-            cdnid="${cdn_prefix}${id}"
-          else
-            id="-EMPTY"
-            cdnid="         "
-          fi
-
-
-          # now actually do the rechecking
-
-          # sleep a little bit before each test, up to ~3 seconds
-          intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
-
-          # use cURL to check the upload link
-            # over-ride link to test logic for specific HTTP error codes using httpbin.org
-            ##link=http://httpbin.org/status/404
-            # -L to follow redirects, -o to set output to nothing --silent removes the progress meter, --head makes a HEAD HTTP request instead of GET, --write-out prints the required status code
-            httpStatus="$(curl --location --output /dev/null --silent --head --write-out '%{http_code}' "${link}" 2> /dev/null || true)"
-              # over-ride httpStatus for testing
-              ##httpStatus="530"
-
-
-
-          # now the logic that does things depending on status returned
-          if [[ "${httpStatus}" == 200 ]]; then
-          # sleep a little bit before next cURL request, up to ~3 seconds
-          intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
-          # identifier seems ok, so recheck metadata to see if it has been marked as high bandwidth
-          # -L follow redirects, --silent, -o output XML to .xml-data-tmp file
-          curl --location --silent --output "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" "${link}" || true
-            # check XML data was fetched OK
-            if [[ -s "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" ]]; then
-              # XML content exists, now `grep` it to check if identifier has been marked as high bandwidth
-              if grep -q "<collection>highbandwidth</collection>" "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp"; then
-                # yep, it's been marked
-                checkstream "${fail}" "High bandwidth." "${link}"
-                # send e-mail about high bandwidth removal right away
-                printf '%s has been marked as high bandwidth.\n\n' "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [High Bandwidth] ${identifier}" "${notify}"
-                # clean up temporary file now that we're done
-                rm --force "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp"
-              else
-                # it's not marked as high bandwidth, we're all good
-                checkstream "${ok}"
-
-                # now that metadata is confirmed to be good, recheck the MP4 file(s) for current identifier also exist and are available too, as we expect
-                # use `ack` to search list of MP4 matches extracted from database dump for files that reference the current identifier
-                # build list of files that begin with http or https and end with .mp4
-                "${wd}/.inc/ack" --nofilter -o "https??://.*/${identifier}/.*\.mp4" "${wd}/${data}/.${timestamp}-mp4-urls-sorted" > "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
-                # check the file(s) exist
-                  while read -r mp4url; do
-                    # sleep a little bit before each test, up to ~5 seconds
-                    intwait="$(((RANDOM % 4)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
-                    # check the status of the current URL
-                    mp4Status="$(curl --location --output /dev/null --silent --head --write-out '%{http_code}' "${mp4url}" 2> /dev/null || true)"
-
-                    # if 200 then file is OK
-                    if [[ "${mp4Status}" == 200 ]]; then
-                      # the metadata is good, the files are good so do nothing successfully using `true`
-                      true
-
-                    # if 301 or 302 then check the redirect, if it lands somewhere expected, then we're okay
-                    elif [[ "${mp4Status}" == 301 || "${mp4Status}" == 302 ]]; then
-                      printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "MP4 redirected: ${mp4url}"
-
-                    # if still 404, send an email alert
-                    elif [[ "${mp4Status}" == 404 ]]; then
-                      # report in check stream
-                      printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "File not found: ${mp4url}"
-                      # send email alert
-                      printf '%s file could not be found.%s\n\n' "${mp4url}" "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
-
-                    # if any other error, then report failure in the check stream and send email
-                    else
-                      mp4StatusInfo="http_${mp4Status}"
-                      printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "Problem checking MP4 file: ${!mp4StatusInfo} ${mp4url}"
-                      printf '%s could not be accessed, %s error: %s\n\n%s\n' "${mp4url}" "${mp4Status}" "${!mp4StatusInfo}" "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
-                    fi
-                  # finished making the check list
-                  done < "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
-                  # clean up temporary file now that we're done
-                  rm --force "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
-                  rm --force "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp"
-                fi
-            else
-              # failed to get XML data
-              checkstream "${fail}" "Failed to get XML data." "${link}"
-            fi
-
-
-
-          elif [[ "${httpStatus}" == 000 ]]; then
-            # sleep a little bit before next cURL request, up to ~3 seconds
-            intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
-            # 000 could mean lots of things. connection refused, ssl fail, unable to resolve dns, etc. run cURL again to try again and also find out a little more based on its exit code
-            # use 2>&1 to redirect cURLs output of both STDOUT and STDERR to the $failState variable and catch cURLs exitcode
-            failState=$(curl --show-error --silent --location "${link}" > /dev/null 2>&1) exitCode=$? || true
-            # over-ride exitCode for testing
-            #exitCode="99"
-
-            # parse different actions depending on type of error. common ones are:
-            if [[ $exitCode == 0 ]]; then
-              # 0 is paradoxically all fine, proceed as usual, i.e. do nothing now
-              checkstream "${ok}" "cURL returned 0 as an exitcode, but otherwise OK."
-
-            elif [[ $exitCode == 6 ]]; then
-              # 6 is couldn't resolve host
-              checkstream "${fail}" "Couldn't resolve host." "${link}"
-              # log this identifier in list of 000 fails to send bulk at end
-              echo "${cdn_origin_url}/details/${identifier}" >> "${wd}/${data}/.${timestamp}-errors-000-6"
-              # trigger update CDN DNS for this item
-              buildCDNrefreshlist
-
-            elif [[ $exitCode == 7 ]]; then
-              # 7 is connection refused
-              checkstream "${fail}" "Connection Refused." "${link}"
-              # log this identifier in list of 000 fails to send bulk at end
-              echo "${cdn_origin_url}/details/${identifier}" >> "${wd}/${data}/.${timestamp}-errors-000-7"
-
-            else
-              # error could be all sorts of other things, and can add more tests here, but for now we'll catch all
-              checkstream "${fail}" "${exitCode}: ${failState}" "${link}"
-              # log this identifier in list of 000 fails
-              checkstream "${fail}" "${exitCode}: ${failState}" "${link}" >> "${wd}/${data}/.${timestamp}-errors-000"
-            fi
-
-
-
-          elif [[ "${httpStatus}" == 302 ]]; then
-            # sleep a little bit before next cURL request, up to ~3 seconds
-            intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
-            # still getting 302 temporary redirect, so check out where it's being redirected to by running cURL on it again
-            redirectEnd="$(curl --show-error --silent --location --output /dev/null --write-out "%{url_effective}" --head "${link}" 2> /dev/null || true)"
-            # if cURL output returns normal metadata file, then assume the upload is OK
-              # build that string to check it, does it end in /items/IDENTIFIER/IDENTIFIER_meta.xml
-              expectedEndFile="$(sed 's#.*#items/&/&_meta.xml#' <<< "${identifier}")"
-                if [[ "$redirectEnd" == *"$expectedEndFile" ]]; then
-                  checkstream "${ok}" "302 again, but destination result is OK."
-                else
-                  checkstream "${fail}" "302 redirected to somewhere unexpected." "${link}"
-                  # write this error to log file
-                  checkstream "${fail}" "302 redirected to somewhere unexpected." "${link}" >> "${wd}/${data}/.${timestamp}-errors-302"
-                fi
-
-
-
-          elif [[ "${httpStatus}" == 403 ]]; then
-            # 403, item is currently forbidden. being taken down?
-              checkstream "${fail}" "${link}"
-              # send an e-mail about removal right away
-              printf '%s may be removed.\n\n%s reported 403 error just now.' "${cdn_origin_url}/details/${identifier}" "${link}" | mail -s "cdn-upcheck [403] ${identifier}" "${notify}"
-
-
-          elif [[ "${httpStatus}" == 404 ]]; then
-            # 404, has been removed
-              checkstream "${fail}" "${link}"
-              # send an e-mail about removal right away
-              printf '%s may be removed.\n\n%s reported 404 error just now.' "${cdn_origin_url}/details/${identifier}" "${link}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
-
-
-          elif [[ "${httpStatus}" == 521 || "${httpStatus}" == 523 || "${httpStatus}" == 530 ]]; then
-            # 521 Cloudflare says the web server is down
-            # 523 Cloudflare says origin unreachable
-            # 530 origin DNS error
-            httpStatusInfo="http_${httpStatus}"
-              checkstream "${fail}" "${!httpStatusInfo}" "${link}"
-              # write this fail to log
-              checkstream "${fail}" "${!httpStatusInfo}" "${link}" >> "${wd}/${data}/.${timestamp}-errors-range"
-              # trigger update CDN DNS for this item
-              buildCDNrefreshlist
-
-          else
-            # catch-all.
-            # 4xx-5xx+ errors probably in here so this must be long downtime. let's alert and if we have a message defined above that matches the current error, show that to explain what we know
-            httpStatusInfo="http_${httpStatus}"
-              checkstream "${fail}" "${!httpStatusInfo}" "${link}"
-              # also write to log
-              checkstream "${fail}" "${!httpStatusInfo}" "${link}" >> "${wd}/${data}/.${timestamp}-errors-range"
-          fi
-
-        # we're done, now on to the next identifier so increase the loop count
-        counter=$((counter +1))
-        done < "${filename}"
+      # run 2nd pass
+      cdn-upcheck 2
     printf '\nFinished re-checking %s uploads.\n\n\n' "$totallines"
   fi
 

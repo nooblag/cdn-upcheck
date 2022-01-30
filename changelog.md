@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 3.1.18 - 2022/01/31
+ * in 1st checkstream, after 200 response, when checking MP4 files, on 404, recheck whole item in a 2nd pass to avoid false positives during load balancing moves. 404 errors for files in 2nd pass produce email alert.
+
+---
+
 ## 3.1.17 - 2022/01/21
  * send `jq` STDERR to `/dev/null` in `extractmetadata_engine()`
 
