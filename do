@@ -676,17 +676,18 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
                   elif [[ "${mp4Status}" == 301 || "${mp4Status}" == 302 ]]; then
                     printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "MP4 redirected: ${mp4url}"
 
-                  # if 404, report a failure in the check stream and send an email alert right away
+                  # if 404, report a failure in the check stream, but confirm it in a 2nd pass before sending an email alert
                   elif [[ "${mp4Status}" == 404 ]]; then
                     printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "File not found: ${mp4url}"
-                    # send an email alert right now
-                    printf '%s may be removed.\n\n%s reported 404 error just now.\n' "${cdn_origin_url}/details/${identifier}" "${mp4url}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
+                    # add current identifier to 2nd pass check
+                    echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
 
                   # if any other error, then report failure in the check stream
                   else
                     mp4StatusInfo="http_${mp4Status}"
                     printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "Problem checking MP4 file: ${!mp4StatusInfo} ${mp4url}"
-                    ##printf '%s may be removed.\n\n%s reported unknown error just now.\n' "${cdn_origin_url}/details/${identifier}" "${mp4url}" | mail -s "cdn-upcheck [000] ${identifier}" "${notify}"
+                    # add current identifier to 2nd pass check
+                    echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
                   fi
                 # finished making the check list
                 done < "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
@@ -879,7 +880,68 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 
           # now the logic that does things depending on status returned
           if [[ "${httpStatus}" == 200 ]]; then
-              checkstream "${ok}"
+          # sleep a little bit before next cURL request, up to ~3 seconds
+          intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
+          # identifier seems ok, so recheck metadata to see if it has been marked as high bandwidth
+          # -L follow redirects, --silent, -o output XML to .xml-data-tmp file
+          curl --location --silent --output "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" "${link}" || true
+            # check XML data was fetched OK
+            if [[ -s "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" ]]; then
+              # XML content exists, now `grep` it to check if identifier has been marked as high bandwidth
+              if grep -q "<collection>highbandwidth</collection>" "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp"; then
+                # yep, it's been marked
+                checkstream "${fail}" "High bandwidth." "${link}"
+                # send e-mail about high bandwidth removal right away
+                printf '%s has been marked as high bandwidth.\n\n' "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [High Bandwidth] ${identifier}" "${notify}"
+                # clean up temporary file now that we're done
+                rm --force "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp"
+              else
+                # it's not marked as high bandwidth, we're all good
+                checkstream "${ok}"
+
+                # now that metadata is confirmed to be good, recheck the MP4 file(s) for current identifier also exist and are available too, as we expect
+                # use `ack` to search list of MP4 matches extracted from database dump for files that reference the current identifier
+                # build list of files that begin with http or https and end with .mp4
+                "${wd}/.inc/ack" --nofilter -o "https??://.*/${identifier}/.*\.mp4" "${wd}/${data}/.${timestamp}-mp4-urls-sorted" > "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
+                # check the file(s) exist
+                  while read -r mp4url; do
+                    # sleep a little bit before each test, up to ~5 seconds
+                    intwait="$(((RANDOM % 4)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
+                    # check the status of the current URL
+                    mp4Status="$(curl --location --output /dev/null --silent --head --write-out '%{http_code}' "${mp4url}" 2> /dev/null || true)"
+
+                    # if 200 then file is OK
+                    if [[ "${mp4Status}" == 200 ]]; then
+                      # the metadata is good, the files are good so do nothing successfully using `true`
+                      true
+
+                    # if 301 or 302 then check the redirect, if it lands somewhere expected, then we're okay
+                    elif [[ "${mp4Status}" == 301 || "${mp4Status}" == 302 ]]; then
+                      printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "MP4 redirected: ${mp4url}"
+
+                    # if still 404, send an email alert
+                    elif [[ "${mp4Status}" == 404 ]]; then
+                      # report in check stream
+                      printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "File not found: ${mp4url}"
+                      # send email alert
+                      printf '%s file could not be found.%s\n\n' "${mp4url}" "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
+
+                    # if any other error, then report failure in the check stream and send email
+                    else
+                      mp4StatusInfo="http_${mp4Status}"
+                      printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "Problem checking MP4 file: ${!mp4StatusInfo} ${mp4url}"
+                      printf '%s could not be accessed, %s error: %s\n\n%s\n' "${mp4url}" "${mp4Status}" "${!mp4StatusInfo}" "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
+                    fi
+                  # finished making the check list
+                  done < "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
+                  # clean up temporary file now that we're done
+                  rm --force "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
+                  rm --force "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp"
+                fi
+            else
+              # failed to get XML data
+              checkstream "${fail}" "Failed to get XML data." "${link}"
+            fi
 
 
 
