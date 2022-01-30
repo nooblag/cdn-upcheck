@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 4.0 - 2022/01/31
+ * unify repetition in checkstreams into `cdn-upcheck()` function
+
+---
+
 ## 3.1.18 - 2022/01/31
  * in 1st checkstream, after 200 response, when checking MP4 files, on 404, recheck whole item in a 2nd pass to avoid false positives during load balancing moves. 404 errors for files in 2nd pass produce email alert.
 
