@@ -610,7 +610,7 @@ cdn-upcheck() {
             # log the link to try it again later
             echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
           fi
-          if [[ "${pass}" == 1 ]]; then
+          if [[ "${pass}" == 2 ]]; then
             checkstream "${fail}" "Failed to get XML data." "${link}"
           fi
         fi
