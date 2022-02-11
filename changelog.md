@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## 4.0.1 - 2022/02/11
+ * fix error handling in MP4 file check where sometimes HTTP code can be empty if there's a remote timeout
+ * rename `error-range` log to `error-else` as more descriptive of its use in the HTTP status code check logic
+ * improve catch all fail in MP4 file check to avoid unnecessary e-mails, move alerts to `error-else` log instead
+
+---
+
 ## 4.0 - 2022/01/31
  * unify repetition in checkstreams into `cdn-upcheck()` function
 
