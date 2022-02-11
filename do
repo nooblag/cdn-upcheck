@@ -551,8 +551,13 @@ cdn-upcheck() {
                 # check the status of the current URL
                 mp4Status="$(curl --location --output /dev/null --silent --head --write-out '%{http_code}' "${mp4url}" 2> /dev/null || true)"
 
+                # if http_code is empty due to a timeout or other remote failure, say so
+                if [[ -z "${mp4Status}" ]]; then
+                  mp4Status="   " # pad with 3 spaces to stay column aligned
+                  printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "HTTP status code empty. Remote timeout? ${mp4url}"
+
                 # if 200 then file is OK
-                if [[ "${mp4Status}" == 200 ]]; then
+                elif [[ "${mp4Status}" == 200 ]]; then
                   ##printf '\t\t\t\t%s\t%s\n' "${ok}" "${mp4url}"
                   # the metadata is good, the files are good so do nothing successfully using `true`
                   true
@@ -575,7 +580,7 @@ cdn-upcheck() {
                     # report failure in check stream
                     printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "File not found: ${mp4url}"
                     # send email alert right now
-                    printf '%s file could not be found.%s\n\n' "${mp4url}" "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
+                    printf '%s file could not be found.%s\n\n' "${mp4url}" "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [404 MP4 File] ${identifier}" "${notify}"
                   fi
 
                 # if any other error, then report failure in the check stream
@@ -592,8 +597,8 @@ cdn-upcheck() {
                   if [[ "${pass}" == 2 ]]; then
                     # report failure in check stream
                     printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "Problem checking MP4 file: ${!mp4StatusInfo} ${mp4url}"
-                    # send email alert
-                    printf '%s could not be accessed, %s error: %s\n\n%s\n' "${mp4url}" "${mp4Status}" "${!mp4StatusInfo}" "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
+                    # add current failure to errors-range e-mail report
+                    checkstream "${fail}" "Problem checking MP4 file: ${!mp4StatusInfo}" "${mp4url}" >> "${wd}/${data}/.${timestamp}-errors-else"
                   fi
                 fi
 
@@ -764,7 +769,7 @@ cdn-upcheck() {
             # alert about failure
             checkstream "${fail}" "${!httpStatusInfo}" "${link}"
             # write this fail to log
-            checkstream "${fail}" "${!httpStatusInfo}" "${link}" >> "${wd}/${data}/.${timestamp}-errors-range"
+            checkstream "${fail}" "${!httpStatusInfo}" "${link}" >> "${wd}/${data}/.${timestamp}-errors-else"
             # trigger update CDN DNS for this item
             buildCDNrefreshlist
           fi
@@ -787,7 +792,7 @@ cdn-upcheck() {
             # this must be long downtime. let's alert and if we have a message defined above that matches the current error, show that to explain what we know
             checkstream "${fail}" "${!httpStatusInfo}" "${link}"
             # write this fail to log
-            checkstream "${fail}" "${!httpStatusInfo}" "${link}" >> "${wd}/${data}/.${timestamp}-errors-range"
+            checkstream "${fail}" "${!httpStatusInfo}" "${link}" >> "${wd}/${data}/.${timestamp}-errors-else"
           fi
     fi
   # we're done, now on to the next identifier so increase the loop count
@@ -1082,7 +1087,7 @@ printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
         printf '%s\n\n%s' "Here is a list of identifiers that did not resolve DNS just now." "$(cat "${wd}/${data}/.${timestamp}-errors-000-6")" > "${wd}/${data}/.${timestamp}-errors-000-6"
         # email it
         printf 'Could not resolve some hosts, sending e-mail log... '
-        mail -s "cdn-upcheck DNS Failures" "${notify}" < "${wd}/${data}/.${timestamp}-errors-000-6"
+        mail -s "cdn-upcheck [DNS Failures]" "${notify}" < "${wd}/${data}/.${timestamp}-errors-000-6"
         printf 'done.\n'
       fi
 
@@ -1093,7 +1098,7 @@ printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
         printf '%s\n\n%s' "Here is a list of identifiers that failed to connect for an uptime test just now." "$(cat "${wd}/${data}/.${timestamp}-errors-000-7")" > "${wd}/${data}/.${timestamp}-errors-000-7"
         # email it
         printf 'Connection(s) refused, sending e-mail log... '
-        mail -s "cdn-upcheck Failed Connections" "${notify}" < "${wd}/${data}/.${timestamp}-errors-000-7"
+        mail -s "cdn-upcheck [Failed Connections]" "${notify}" < "${wd}/${data}/.${timestamp}-errors-000-7"
         printf 'done.\n'
       fi
 
@@ -1104,7 +1109,7 @@ printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
         printf '%s\n\n%s' "Here is a list of identifiers that returned some kind of zero status code just now." "$(cat "${wd}/${data}/.${timestamp}-errors-000")" > "${wd}/${data}/.${timestamp}-errors-000"
         # email it
         printf 'Zero status returned, sending e-mail log... '
-        mail -s "cdn-upcheck Zero Status Failures" "${notify}" < "${wd}/${data}/.${timestamp}-errors-000"
+        mail -s "cdn-upcheck [Zero Status Failures]" "${notify}" < "${wd}/${data}/.${timestamp}-errors-000"
         printf 'done.\n'
       fi
 
@@ -1116,19 +1121,19 @@ printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
       printf '%s\n\n%s' "Here is a list of identifiers that returned 302 redirects to somewhere unexpected:" "$(cat "${wd}/${data}/.${timestamp}-errors-302")" > "${wd}/${data}/.${timestamp}-errors-302"
       # email it
       printf 'Unexpected redirect error(s) returned, sending e-mail log... '
-      mail -s "cdn-upcheck 302 Redirect Errors" "${notify}" < "${wd}/${data}/.${timestamp}-errors-302"
+      mail -s "cdn-upcheck [302 Redirect Errors]" "${notify}" < "${wd}/${data}/.${timestamp}-errors-302"
       printf 'done.\n'
     fi    
 
 
   # send e-mail about all other failures from the catch-all
     # check if log file exists and is not empty (-s)
-    if [[ -s "${wd}/${data}/.${timestamp}-errors-range" ]]; then
+    if [[ -s "${wd}/${data}/.${timestamp}-errors-else" ]]; then
       # prepend a little note to the log before e-mailing it
-      printf '%s\n\n%s' "Here is a list of identifiers that failed an uptime test just now." "$(cat "${wd}/${data}/.${timestamp}-errors-range")" > "${wd}/${data}/.${timestamp}-errors-range"
+      printf '%s\n\n%s' "Here is a list of identifiers or files that failed an uptime test just now." "$(cat "${wd}/${data}/.${timestamp}-errors-else")" > "${wd}/${data}/.${timestamp}-errors-else"
       # email it
       printf 'Catch-all-rule error(s) returned, sending e-mail log... '
-      mail -s "cdn-upcheck Catch-all Failures" "${notify}" < "${wd}/${data}/.${timestamp}-errors-range"
+      mail -s "cdn-upcheck [Catch-all Failures]" "${notify}" < "${wd}/${data}/.${timestamp}-errors-else"
       printf 'done.\n'
     fi
 
