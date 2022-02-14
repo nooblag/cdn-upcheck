@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 4.0.2 - 2021/02/14
+ * improve MP4 file check where HTTP code is empty, ensure a recheck at the end and show error if continuing
+
+---
+
 ## 4.0.1 - 2022/02/11
  * fix error handling in MP4 file check where sometimes HTTP code can be empty if there's a remote timeout
  * rename `error-range` log to `error-else` as more descriptive of its use in the HTTP status code check logic
