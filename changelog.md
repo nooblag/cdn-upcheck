@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 4.0.3 - 2021/02/15
+ * improve MP4 file check and checkstream messages
+
+---
+
 ## 4.0.2 - 2021/02/14
  * improve MP4 file check where HTTP code is empty, ensure a recheck at the end and show error if continuing
 
