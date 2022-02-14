@@ -554,7 +554,20 @@ cdn-upcheck() {
                 # if http_code is empty due to a timeout or other remote failure, say so
                 if [[ -z "${mp4Status}" ]]; then
                   mp4Status="   " # pad with 3 spaces to stay column aligned
-                  printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "HTTP status code empty. Remote timeout? ${mp4url}"
+                  # on 1st pass
+                  if [[ "${pass}" == 1 ]]; then
+                    # report warning in checkstream
+                    printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "HTTP status code empty. Remote timeout? ${mp4url}"
+                    # add current identifier to 2nd pass check
+                    echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
+                  fi
+                  # on 2nd pass
+                  if [[ "${pass}" == 2 ]]; then
+                    # report failure in checkstream
+                    printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "HTTP status code empty. Remote timeout? ${mp4url}"
+                    # add current failure to errors-range e-mail report
+                    checkstream "${fail}" "HTTP status code empty. Remote timeout?" "${mp4url}" >> "${wd}/${data}/.${timestamp}-errors-else"
+                  fi
 
                 # if 200 then file is OK
                 elif [[ "${mp4Status}" == 200 ]]; then
@@ -568,17 +581,15 @@ cdn-upcheck() {
 
                 # if 404, report a failure in the check stream, but confirm it in a 2nd pass before sending an email alert
                 elif [[ "${mp4Status}" == 404 ]]; then
+                  # report redo in checkstream
+                  printf '\t\t\t\t%s  %s  %s\n' "${redo}" "${mp4Status}" "File not found: ${mp4url}"
                   # on 1st pass
                   if [[ "${pass}" == 1 ]]; then
-                    # report redo in checkstream
-                    printf '\t\t\t\t%s  %s  %s\n' "${redo}" "${mp4Status}" "File not found: ${mp4url}"
                     # add current identifier to 2nd pass check
                     echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
                   fi
                   # on 2nd pass
                   if [[ "${pass}" == 2 ]]; then
-                    # report failure in check stream
-                    printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "File not found: ${mp4url}"
                     # send email alert right now
                     printf '%s file could not be found.%s\n\n' "${mp4url}" "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [404 MP4 File] ${identifier}" "${notify}"
                   fi
@@ -704,15 +715,15 @@ cdn-upcheck() {
               # still getting 302 temporary redirect, so check out where it's being redirected to by running cURL on it again
               redirectEnd="$(curl --show-error --silent --location --output /dev/null --write-out "%{url_effective}" --head "${link}" 2> /dev/null || true)"
               # if cURL output returns normal metadata file, then assume the upload is OK
-               # build that string to check it, does it end in /items/IDENTIFIER/IDENTIFIER_meta.xml
-               expectedEndFile="$(sed 's#.*#items/&/&_meta.xml#' <<< "${identifier}")"
-               if [[ "$redirectEnd" == *"$expectedEndFile" ]]; then
-                 checkstream "${ok}" "302 again, but destination result is OK."
-               else
-                 checkstream "${fail}" "302 redirected to somewhere unexpected." "${link}"
-                 # write this error to log file
-                 checkstream "${fail}" "302 redirected to somewhere unexpected." "${link}" >> "${wd}/${data}/.${timestamp}-errors-302"
-               fi
+              # build that string to check it, does it end in /items/IDENTIFIER/IDENTIFIER_meta.xml
+              expectedEndFile="$(sed 's#.*#items/&/&_meta.xml#' <<< "${identifier}")"
+              if [[ "$redirectEnd" == *"$expectedEndFile" ]]; then
+                checkstream "${ok}" "302 again, but destination result is OK."
+              else
+                checkstream "${fail}" "302 redirected to somewhere unexpected." "${link}"
+                # write this error to log file
+                checkstream "${fail}" "302 redirected to somewhere unexpected." "${link}" >> "${wd}/${data}/.${timestamp}-errors-302"
+              fi
             fi
 
 
