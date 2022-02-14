@@ -557,16 +557,16 @@ cdn-upcheck() {
                   # on 1st pass
                   if [[ "${pass}" == 1 ]]; then
                     # report warning in checkstream
-                    printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "HTTP status code empty. Remote timeout? ${mp4url}"
+                    printf '\t\t\t\t%s  %s  %s\n' "${redo}" "${mp4Status}" "HTTP status code empty. Remote timeout? ${mp4url}"
                     # add current identifier to 2nd pass check
                     echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
                   fi
                   # on 2nd pass
                   if [[ "${pass}" == 2 ]]; then
                     # report failure in checkstream
-                    printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "HTTP status code empty. Remote timeout? ${mp4url}"
+                    printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "HTTP status code empty. Remote timeout? ${mp4url}"
                     # add current failure to errors-range e-mail report
-                    checkstream "${fail}" "HTTP status code empty. Remote timeout?" "${mp4url}" >> "${wd}/${data}/.${timestamp}-errors-else"
+                    ##checkstream "${fail}" "HTTP status code empty. Remote timeout?" "${mp4url}" >> "${wd}/${data}/.${timestamp}-errors-else"
                   fi
 
                 # if 200 then file is OK
@@ -581,15 +581,17 @@ cdn-upcheck() {
 
                 # if 404, report a failure in the check stream, but confirm it in a 2nd pass before sending an email alert
                 elif [[ "${mp4Status}" == 404 ]]; then
-                  # report redo in checkstream
-                  printf '\t\t\t\t%s  %s  %s\n' "${redo}" "${mp4Status}" "File not found: ${mp4url}"
                   # on 1st pass
                   if [[ "${pass}" == 1 ]]; then
+                    # report redo in checkstream
+                    printf '\t\t\t\t%s  %s  %s\n' "${redo}" "${mp4Status}" "File not found: ${mp4url}"
                     # add current identifier to 2nd pass check
                     echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
                   fi
                   # on 2nd pass
                   if [[ "${pass}" == 2 ]]; then
+                    # report redo in checkstream
+                    printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "File not found: ${mp4url}"
                     # send email alert right now
                     printf '%s file could not be found.%s\n\n' "${mp4url}" "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [404 MP4 File] ${identifier}" "${notify}"
                   fi
@@ -600,7 +602,7 @@ cdn-upcheck() {
                   # on 1st pass
                   if [[ "${pass}" == 1 ]]; then
                     # report warning in checkstream
-                    printf '\t\t\t\t%s  %s  %s\n' "${warn}" "${mp4Status}" "Problem checking MP4 file: ${!mp4StatusInfo} ${mp4url}"
+                    printf '\t\t\t\t%s  %s  %s\n' "${redo}" "${mp4Status}" "Problem checking MP4 file: ${!mp4StatusInfo} ${mp4url}"
                     # add current identifier to 2nd pass check
                     echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
                   fi
