@@ -593,7 +593,7 @@ cdn-upcheck() {
                     # report redo in checkstream
                     printf '\t\t\t\t%s  %s  %s\n' "${fail}" "${mp4Status}" "File not found: ${mp4url}"
                     # send email alert right now
-                    printf '%s file could not be found.%s\n\n' "${mp4url}" "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [404 MP4 File] ${identifier}" "${notify}"
+                    printf '%s file could not be found.\n\n%s\n' "${mp4url}" "${cdn_origin_url}/details/${identifier}" | mail -s "cdn-upcheck [404 MP4 File] ${identifier}" "${notify}"
                   fi
 
                 # if any other error, then report failure in the check stream
