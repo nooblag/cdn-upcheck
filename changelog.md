@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 4.0.5 - 2022/02/24
+ * small improvements to command verbosity and comments throughout for better readability
+
+---
+
 ## 4.0.4 - 2022/02/16
  * fix typo in MP4 file check 404 error e-mail alert
 
