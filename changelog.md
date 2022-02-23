@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 4.0.6 - 2022/02/24
+ * replace awk -F field separator argument for /usr/bin/mawk on target system
+
+---
+
 ## 4.0.5 - 2022/02/24
  * small improvements to command verbosity and comments throughout for better readability
 
