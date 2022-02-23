@@ -220,7 +220,7 @@ extractmetadata_engine(){
     # create a lockfile that denotes this session only. this is used later to test if we're running the metadata extraction in this instance
     touch "/run/lock/.${timestamp}-${lockfile}"
     # create a lockfile for all other concurrently running instances
-    # put lockfile in /run/lock as that's cleared on server reboots
+    # put lockfile in /run/lock as that's cleared on server reboots for better total crash handling
     touch "/run/lock/.cdn-upcheck-metadata.lock"
   fi
 
@@ -261,8 +261,9 @@ extractmetadata_engine(){
           # metadata file isn't {} so try parse stuff now
           # parse to extract server name and dir, use `tr` to trim empty lines and blank space
           # send jq STDERR to /dev/null so its output is not captured in the string and tested against later
-          server="$("${wd}/.inc/jq" --raw-output ".server" "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" 2> /dev/null | tr -d " \t\n\r" || true)"
-          dir="$("${wd}/.inc/jq" --raw-output ".dir" "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" 2> /dev/null | tr -d " \t\n\r" || true)"
+          # snip unwanted spaces, tabs, new lines, and cartridge returns using `tr`
+          server="$("${wd}/.inc/jq" --raw-output ".server" "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" 2> /dev/null | tr --delete " \t\n\r" || true)"
+          dir="$("${wd}/.inc/jq" --raw-output ".dir" "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" 2> /dev/null | tr --delete " \t\n\r" || true)"
           # check that jq extraction worked okay
           if [[ "${server}" == 'null' || "${dir}" == 'null' ]]; then
             # `jq` returned empty extraction so build a failsafe URL
@@ -289,6 +290,7 @@ extractmetadata_engine(){
         # done working with metadata that isn't empty {}
         fi
       else
+        # metadata returned is empty, fall back on cdn.cmsdomain.com default as failsafe
         echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
         printf "\n%s" "  metadata invalid: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
       fi
@@ -326,7 +328,7 @@ extractmetadata() {
   # run `ack` on the database dump to extract all references to content hosted at cdn.cmsdomain.com with or without HTTPS
   printf 'Extracting CDN filenames... '
     # extract all CDN lines ending with an MP4 file
-    "${wd}/.inc/ack" --nofilter -o "https??://${cdn_url##*//}/download/\S+?.mp4" "${wd}/${data}/.dump.sql" > "${wd}/${data}/.mp4-matches"
+    "${wd}/.inc/ack" --nofilter --output='$&' "https??://${cdn_url##*//}/download/\S+?.mp4" "${wd}/${data}/.dump.sql" > "${wd}/${data}/.mp4-matches"
     # `sort` .mp4-matches list to remove duplicates, as the extraction may contain duplicate data from Wordpress post revisions not yet cleaned from the database
     # bear in mind at the moment that this list also includes draft posts if lines CDN match as `mysql` query from database dump doesn't distinguish post status from _postmeta table... could fix this in future with a more complex query for dumping
     sort --unique "${wd}/${data}/.mp4-matches" > "${wd}/${data}/.mp4-matches-sorted"
@@ -334,14 +336,14 @@ extractmetadata() {
 
   printf 'Extracting CDN identifiers... '
     # extract identifiers from the list we build and sort for uniqueness above
-    "${wd}/.inc/ack" --nofilter -o "https??://${cdn_url##*//}/download/\S+?/" "${wd}/${data}/.mp4-matches-sorted" > "${wd}/${data}/.identifier-matches"
+    "${wd}/.inc/ack" --nofilter --output='$&' "https??://${cdn_url##*//}/download/\S+?/" "${wd}/${data}/.mp4-matches-sorted" > "${wd}/${data}/.identifier-matches"
     sort --unique "${wd}/${data}/.identifier-matches" > "${wd}/${data}/.identifier-matches-sorted"
   printf 'done.\n'
 
   # extract the identifier part of URLs
   printf 'Building list of identifiers... '
     # now use the sorted and unique identifier list to extract a list of just the identifiers
-    "${wd}/.inc/ack" --nofilter -o "(?<=/download/).*(?=\/)" "${wd}/${data}/.identifier-matches-sorted" > "${wd}/${data}/.identifier-matches-list"
+    "${wd}/.inc/ack" --nofilter --output='$&' "(?<=/download/).*(?=\/)" "${wd}/${data}/.identifier-matches-sorted" > "${wd}/${data}/.identifier-matches-list"
     # wash identifiers-temp file through `sort` with --unique to ensure duplicates that are referenced from playlists/series are removed
     sort --unique "${wd}/${data}/.identifier-matches-list" > "${wd}/${data}/.identifier-matches-list-sorted"
   printf 'done.\n'
@@ -353,8 +355,8 @@ extractmetadata() {
   sort --unique "${wd}/${data}/.xml-urls" > "${wd}/${data}/.xml-urls-sorted"
 
   # use two lists (.xml-urls-sorted and .mp4-matches-sorted) to build a new list of what each identifiers MP4 files are. use required later to check if an identifier's MP4 files exist/are available
-  # `awk` solution thanks to @SasaKanjuh, comments added, -F for field delimiter
-  awk -F '/' ' {
+  # `awk` solution thanks to @SasaKanjuh, comments added
+  awk --field-separator='/' ' {
     # get each identifier
     identifier = $(NF - 1)
 
@@ -493,7 +495,7 @@ cdn-upcheck() {
     # extract the current server number from the URL
     # use `awk` to get the subdomain(s) part of the CDN URL and then `grep` only the part with 6 digits as the ID
     # add `true` to always exit successfully even if we don't get an ID match
-    id="$(awk -F '/' '{print $3}' <<< "${link}" | grep --only-matching '[0-9]\{6\}' || true)"
+    id="$(awk --field-separator='/' '{print $3}' <<< "${link}" | grep --only-matching '[0-9]\{6\}' || true)"
     # if we cannot grab the CDN ID, then just set it to use a dummy so we don't have an empty string
     if [[ -n "${id}" ]]; then
       cdnid="${cdn_prefix}${id}"
@@ -524,7 +526,6 @@ cdn-upcheck() {
       # sleep a little bit before next cURL request, up to ~3 seconds
       intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
       # identifier seems ok, so now grab metadata to see if it has been marked as high bandwidth
-      # -L follow redirects, --silent, -o output XML to .xml-data-tmp file
       curl --location --silent --output "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" "${link}" || true
         # check XML data was fetched OK
         if [[ -s "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" ]]; then
@@ -543,7 +544,7 @@ cdn-upcheck() {
             # now that metadata is confirmed to be good, check the MP4 file(s) for current identifier also exist and are available too, as we expect
             # use `ack` to search list of MP4 matches extracted from database dump for files that reference the current identifier
             # build list of files that begin with http or https and end with .mp4
-            "${wd}/.inc/ack" --nofilter -o "https??://.*/${identifier}/.*\.mp4" "${wd}/${data}/.${timestamp}-mp4-urls-sorted" > "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
+            "${wd}/.inc/ack" --nofilter --output='$&' "https??://.*/${identifier}/.*\.mp4" "${wd}/${data}/.${timestamp}-mp4-urls-sorted" > "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
             # check the file(s) exist
               while read -r mp4url; do
                 # sleep a little bit before each test, up to ~5 seconds
@@ -849,7 +850,7 @@ fi
 # check if lockfile exists for metadata extraction and if prior script is busy then stop everything/skip this check
 if [[ -f "/run/lock/.cdn-upcheck-metadata.lock" ]]; then
   # find time lockfile was modified; %l %M %P format renders as 9:30pm for example
-  lockfiletime="$(date -r "/run/lock/.cdn-upcheck-metadata.lock" +%l:%M%P)"
+  lockfiletime="$(date --reference="/run/lock/.cdn-upcheck-metadata.lock" +%l:%M%P)"
   # remove leading space from the date output using parameter expansion (https://wiki.bash-hackers.org/syntax/pe)
   removeleadingspace="${lockfiletime%%[^[:blank:]]*}"
   lockfiletime="${lockfiletime#"${removeleadingspace}"}"
@@ -890,7 +891,7 @@ fi
 # tell us how many uploads we'll be checking
   filename="${wd}/${data}/.${timestamp}-xml-urls-shuf"
   # count how many lines in file, we assume this is how many uploads we'll be checking
-  totallines="$(wc -l < "${filename}")"
+  totallines="$(wc --lines < "${filename}")"
   printf 'Checking %s uploads.\n\n' "$totallines"
 
 # set up a loop counter for progress reporting
@@ -959,7 +960,7 @@ printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
   if [[ -s "${wd}/${data}/.${timestamp}-links-tryagain" ]]; then
       filename="${wd}/${data}/.${timestamp}-links-tryagain"
       # count how many lines in this error file, we assume this is how many files
-      totallines="$(wc -l < "${filename}")"
+      totallines="$(wc --lines < "${filename}")"
       printf '*** Try again error(s) detected. ***\n\n'
       # reset loop counter for files
       counter=1
@@ -1004,7 +1005,7 @@ printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
   if [[ -s "${wd}/${data}/.${timestamp}-cdns-to-refresh" ]]; then
     filename="${wd}/${data}/.${timestamp}-cdns-to-refresh"
     # count how many lines in this error file, we assume this is how many items require DNS refresh
-    totallines="$(wc -l < "${filename}")"
+    totallines="$(wc --lines < "${filename}")"
     printf '*** Possible DNS failure(s) detected. ***\n\n'
 
     printf 'Refreshing CDN DNS.\n'
@@ -1029,7 +1030,7 @@ printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
               if [[ -n "${id}" ]]; then
                 # extracted server ID successfully
                 # now use `host` to check if the upstream CDN server we're iterating returns an IP, which shows it has DNS (exists)
-                ip="$(host "${url}" | "${wd}/.inc/ack" -o "\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}" || true)"
+                ip="$(host "${url}" | "${wd}/.inc/ack" --output='$&' "\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}" || true)"
                   if [[ -n "${ip}" ]]; then
                     # `host` returned an IP for upstream CDN server, it exists, so increase count and notify user
                     printf '%s %s.%s  ->  %s' "$(date ${time})" "${cdn_prefix}${id}" "${cdn_domain}" "${ip}"
