@@ -356,7 +356,8 @@ extractmetadata() {
 
   # use two lists (.xml-urls-sorted and .mp4-matches-sorted) to build a new list of what each identifiers MP4 files are. use required later to check if an identifier's MP4 files exist/are available
   # `awk` solution thanks to @SasaKanjuh, comments added
-  awk --field-separator='/' ' {
+  # must use -F for field separator for /usr/bin/mawk on target system
+  awk -F '/' ' {
     # get each identifier
     identifier = $(NF - 1)
 
@@ -495,7 +496,7 @@ cdn-upcheck() {
     # extract the current server number from the URL
     # use `awk` to get the subdomain(s) part of the CDN URL and then `grep` only the part with 6 digits as the ID
     # add `true` to always exit successfully even if we don't get an ID match
-    id="$(awk --field-separator='/' '{print $3}' <<< "${link}" | grep --only-matching '[0-9]\{6\}' || true)"
+    id="$(awk -F '/' '{print $3}' <<< "${link}" | grep --only-matching '[0-9]\{6\}' || true)"
     # if we cannot grab the CDN ID, then just set it to use a dummy so we don't have an empty string
     if [[ -n "${id}" ]]; then
       cdnid="${cdn_prefix}${id}"
