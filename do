@@ -722,7 +722,7 @@ cdn-upcheck() {
               # build that string to check it, does it end in /items/IDENTIFIER/IDENTIFIER_meta.xml
               expectedEndFile="$(sed 's#.*#items/&/&_meta.xml#' <<< "${identifier}")"
               if [[ "$redirectEnd" == *"$expectedEndFile" ]]; then
-                checkstream "${ok}" "302 again, but destination result is OK."
+                checkstream "${ok}" "302 redirect, but destination result is OK."
               else
                 checkstream "${fail}" "302 redirected to somewhere unexpected." "${link}"
                 # write this error to log file
