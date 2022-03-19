@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## 4.0.7 - 2022/03/20
+ * modify lockfile mechanism to replace use of `hexdump` which has possibility of being unreliable, with `mktemp` instead
+ * improve mechanism to only create the string and lockfile for locking if `extractmetadata_engine()` starts and is doing the initial .xml-urls parsing
+ * modify checks for lockfile and lockfile cleaning throughout
+
+---
+
 ## 4.0.6 - 2022/02/24
  * replace awk -F field separator argument for /usr/bin/mawk on target system
 
