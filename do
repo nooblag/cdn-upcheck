@@ -79,7 +79,7 @@
   time='+%l:%M:%S'
 
   # set time interval in minutes for when database refresh should happen, also used for garbage collection
-  # e.g. refresh database and clear old temporary files after 12 hours, 5 minutes
+  # e.g. refresh database and clear old temporary files after 720 minutes (12 hours)
   refreshtime="$( < "${conf_dir}/.refreshtime")"
 
   # set up check stream status notification formatting, also used in email notifications
@@ -88,8 +88,6 @@
   fail='[FAIL]'
   warn='[WARN]'
 
-  # generate random string name to append to current file lock usage so we have a file lock that denotes this specifically running instance. this is used for emergency_cleanup checks, etc
-  lockfile="$(hexdump -e '/1 "%02x"' -n32 < /dev/urandom)"
 
   # define HTTP error codes we may like to iterate, if need be, in e-mail logs
   # 4xx:
@@ -216,11 +214,11 @@ extractmetadata_engine(){
   counter=1
 
   # create lockfile for the big initial extraction and refreshes (i.e. when using "${wd}/${data}/.xml-urls")
+  # put lockfiles in /run/lock as that's cleared on server reboots for better total crash handling
   if [[ "${2}" == "${wd}/${data}/.xml-urls" ]]; then
     # create a lockfile that denotes this session only. this is used later to test if we're running the metadata extraction in this instance
-    touch "/run/lock/.${timestamp}-${lockfile}"
-    # create a lockfile for all other concurrently running instances
-    # put lockfile in /run/lock as that's cleared on server reboots for better total crash handling
+    lockfile="$(mktemp /run/lock/.cdn-upcheck-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.lock)"
+    # create a persistent lockfile for all other concurrently running instances
     touch "/run/lock/.cdn-upcheck-metadata.lock"
   fi
 
@@ -311,10 +309,12 @@ extractmetadata_engine(){
   howlong="$(rendertimer $duration)"
   printf 'Building check list took %s.\n\n\n' "${howlong}"
 
-  # ensure lockfile is removed on big long first extractions or refreshes
+  # ensure lockfiles are removed on big long first extractions or refreshes
   if [[ "${2}" == "${wd}/${data}/.xml-urls" ]]; then
+    # remove persistent lock
     rm --force "/run/lock/.cdn-upcheck-metadata.lock"
-    rm --force "/run/lock/.${timestamp}-${lockfile}"
+    # remove lock from this session
+    rm --force "${lockfile}"
   fi
 }
 
@@ -436,13 +436,13 @@ emergency_cleanup(){
     # clear this failed session's temporary files
     find "${wd}/${data}/" -maxdepth 1 -name ".${timestamp}*" -type f -delete
 
-    # if the metadata extraction is running inside this instance during fail (i.e. lock file with current timestamp)
-    if [[ -f "/run/lock/.${timestamp}-${lockfile}" ]]; then
+    # if the metadata extraction is running inside this instance during fail (i.e. lock file has been set with current timestamp)
+    if [[ -n "${lockfile}" ]] && [[ -f "${lockfile}" ]]; then
       # clear out the entire data folder for all checks so next check starts fresh
-      # use further check (${data:?}) on $data variable here to prevent `rm` wiping out everything from root (/) if $data is empty for whatever reason (https://github.com/koalaman/shellcheck/wiki/SC2115) don't want it attempting to wipe out root!
-      rm --recursive --force "${wd}/${data:?}/"
+      # use safety measures (${string:?}) on variables to prevent `rm` wiping out everything from root (/) if $wd or $data is empty for an unforseen reason (https://github.com/koalaman/shellcheck/wiki/SC2115)
+      rm --recursive --force "${wd:?}/${data:?}/"
       # also clean up this session's file lock
-      rm --force "/run/lock/.${timestamp}-${lockfile}"
+      rm --force "${lockfile}"
     fi
 
     # ensure file lock from any instance is removed regardless of what happened this time
@@ -848,7 +848,7 @@ fi
 
 
 
-# check if lockfile exists for metadata extraction and if prior script is busy then stop everything/skip this check
+# check if persistent lockfile exists for metadata extraction and if prior script is busy then stop everything/skip this check
 if [[ -f "/run/lock/.cdn-upcheck-metadata.lock" ]]; then
   # find time lockfile was modified; %l %M %P format renders as 9:30pm for example
   lockfiletime="$(date --reference="/run/lock/.cdn-upcheck-metadata.lock" +%l:%M%P)"
