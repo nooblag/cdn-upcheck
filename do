@@ -17,7 +17,7 @@
   # stop everything when any command exits with non-zero status
   set -o errexit
 
-  # set the exit code of a pipeline to that of the rightmost command to exit with a non-zero status, or to zero if all commands of the pipeline exit successfully
+  # carry exit codes of a pipeline through to the end of the line
   set -o pipefail
 
   # get the full path to wherever this script resides, without trailing slash
@@ -39,7 +39,7 @@
   fi 
 
 
-  # folder name for where we get next config settings
+  # folder name for where we get config settings
   conf_dir='.conf'
 
   # set e-mail address to send alerts to
@@ -125,13 +125,7 @@
     http_530="Origin DNS error."
 
 
-  # TRAP FOR EMERGENCY GARBAGE COLLECTION
-  # set up a trap for garbage collection that will run on aborts or fails
-  # cleans up any temporary files from the failed session (current timestamp)
-  trap emergency_cleanup SIGINT SIGTERM
-
-
-  # check we have valid settings applied before continuing
+  # check we have non-empty config settings available before continuing
   checkconfigvars() {
     var_names=("$@")
     for var_name in "${var_names[@]}"; do
@@ -147,8 +141,13 @@
     # must return zero if not exit 1 above
     return 0
   }
-
   checkconfigvars notify cdn_origin_url cdn_url mysqldump_db mysqldump_user mysqldump_pw cdn_prefix cdn_domain cdn_acc_email cdn_api_key cdn_origin_prefix cdn_origin_domain refreshtime
+
+
+  # START TRAP FOR EMERGENCY GARBAGE COLLECTION
+  # set up a trap for garbage collection that will run on aborts or fails
+  # cleans up any temporary files from the failed session (current timestamp)
+  trap emergency_cleanup SIGINT SIGTERM
 
 
 
@@ -159,7 +158,7 @@
 
 rendertimer(){
   # convert seconds to Days, Hours, Minutes, Seconds
-  # thanks to Nikolay Sidorov and https://www.shellscript.sh/tips/hms/
+  # thanks to ideas by Nikolay Sidorov and https://www.shellscript.sh/tips/hms/
   local parts seconds D H M S D_tag H_tag M_tag S_tag
   seconds=${1:-0}
   # all days
@@ -216,11 +215,11 @@ extractmetadata_engine(){
   counter=1
 
   # create lockfile for the big initial extraction and refreshes (i.e. when using "${wd}/${data}/.xml-urls")
-  # put lockfiles in /run/lock as that's cleared on server reboots for better total crash handling
+  # put lockfiles in /run/lock as that's cleared on server reboots for any total crash handling
   if [[ "${2}" == "${wd}/${data}/.xml-urls" ]]; then
     # create a lockfile that denotes this session only. this is used later to test if we're running the metadata extraction in this instance
     lockfile="$(mktemp /run/lock/.cdn-upcheck-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.lock)"
-    # create a persistent lockfile for all other concurrently running instances
+    # create a persistent lockfile for use by other concurrently running instances to check with
     touch "/run/lock/.cdn-upcheck-metadata.lock"
   fi
 
@@ -250,7 +249,7 @@ extractmetadata_engine(){
 
     # fetch metadata from /metadata JSON and save it to temp file for further parsing
     curl --silent "${cdn_origin_url}/metadata/${identifier}" > "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" || true
-    # test if cURL output starts with an { as expected, if not, the site is down or we have JSON error, so fall back to cdn.cmsdomain.com default
+    # test if `curl` output starts with an { as expected, if not, the site is down or we have JSON error, so fall back to cdn.cmsdomain.com default
       if read -r -n1 char < "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp"; [[ $char = "{" ]]; then
         # yes, metadata starts with { but now check if the metadata returned is empty, i.e. {}
         if read -r -n2 char < "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp"; [[ $char = "{}" ]]; then
@@ -332,7 +331,7 @@ extractmetadata() {
     # extract all CDN lines ending with an MP4 file
     "${wd}/.inc/ack" --nofilter --output='$&' "https??://${cdn_url##*//}/download/\S+?.mp4" "${wd}/${data}/.dump.sql" > "${wd}/${data}/.mp4-matches"
     # `sort` .mp4-matches list to remove duplicates, as the extraction may contain duplicate data from Wordpress post revisions not yet cleaned from the database
-    # bear in mind at the moment that this list also includes draft posts if lines CDN match as `mysql` query from database dump doesn't distinguish post status from _postmeta table... could fix this in future with a more complex query for dumping
+    # this list also includes draft posts if lines CDN match as `mysql` query from database dump doesn't distinguish post status from _postmeta table.
     sort --unique "${wd}/${data}/.mp4-matches" > "${wd}/${data}/.mp4-matches-sorted"
   printf 'done.\n'
 
@@ -358,7 +357,7 @@ extractmetadata() {
 
   # use two lists (.xml-urls-sorted and .mp4-matches-sorted) to build a new list of what each identifiers MP4 files are. use required later to check if an identifier's MP4 files exist/are available
   # `awk` solution thanks to @SasaKanjuh, comments added
-  # must use -F for field separator for /usr/bin/mawk on target system
+  # must use -F for field separator for older version /usr/bin/mawk on target system
   awk -F '/' ' {
     # get each identifier
     identifier = $(NF - 1)
@@ -375,7 +374,7 @@ extractmetadata() {
     else print first_portion[identifier] "/" $NF
   }' "${wd}/${data}/.xml-urls-sorted" "${wd}/${data}/.mp4-matches-sorted" > "${wd}/${data}/.mp4-urls"
 
-  # sort this list to ensure it's clean, no duplicates
+  # sort this list to ensure it's still clean, no duplicates
   sort --unique "${wd}/${data}/.mp4-urls" > "${wd}/${data}/.mp4-urls-sorted"
 }
 
@@ -396,7 +395,7 @@ buildCDNrefreshlist(){
   # this function is used in the second pass of checkstream ONLY
   # log the CDN ID of this identifier in a list of CDN domains to refresh so we can try to update DNS for this failed host
   # $id contains the server number that needs refreshing, i.e. 123456. use it to build cdn123456.cdn-upcheckdomain.tld and add that to the list for refreshing
-  # != "-EMPTY" is used to check against because that's a placeholder for a CDN ID that is served by cdn.cmsdomain.com not cdn123456.cdn-upcheckdomain.tld
+  # != "-EMPTY" is used to check against because that's the placeholder for a CDN ID that is served by cdn.cmsdomain.com not cdn123456.cdn-upcheckdomain.tld
   # i.e. if the current CDN is a 'blank' then don't write anything
   if [[ -n "${id}" ]] && [[ "${id}" != "-EMPTY" ]]; then
     echo "${cdn_origin_prefix}${id}.${cdn_origin_domain}" >> "${wd}/${data}/.${timestamp}-cdns-to-refresh"
@@ -405,9 +404,10 @@ buildCDNrefreshlist(){
 
 
 checkstream(){
-  # use this function in any check loop to print the current check line
-  # renders as: "h:MM:SS  x of xx  cdn123456  [ OK ]  200  Identifier  Error message.  https://cdnlink/if/needed"
-  #              %s      %d of $d  %s         %s      %s   %s          %s              %s
+  # use this function in any check loop to print the current check info line
+  # renders as: TIME     COUNT    CDN-ID     STATUS  HTTP IDENTIFIER  MESSAGE SPACE   URL (on error)
+  #             h:MM:SS  x of xx  cdn123456  [ OK ]  200  id_FooBar   Error message.  https://cdnlink/if/needed"
+  #             %s       %d of $d  %s         %s      %s   %s          %s              %s
   # $1 is OK or FAIL status, $2 is error message if needed, $3 is current CDN link (https://cdn123456/identifier/...)
   printf '%s %*d of %d  %s\t%s  %s  %s  %s  %s\n' "$(date ${time})" $((${#totallines}+1)) "$counter" "$totallines" "${cdnid}" "${1}" "${httpStatus}" "${identifier}" "${2}" "${3}"
 }
@@ -427,7 +427,7 @@ cleanup(){
     # should not evaluate any files from this session as part of this cleanup by passing this session's timestamp into -not -iname
     # prefer selecting by -atime rather than -amin because `find` says -amin calculates "from the beginning of today rather than from 24 hours ago" and that may cause problems in the overlay of days with hourly cron? not sure
     # -atime +n = file was last accessed n*24 hours ago. "`find` figures out how many 24-hour periods ago the file was last accessed" (see `man time`)
-    # so final line should evaluate files in temp dir only, that are not from current session, that have a timestamp, and that have not been accessed for more than 7 days; matches are deleted
+    # so final line should evaluate files in temp dir only, that are not from current session, that have a timestamp, and that have not been accessed for more than 7x24-hour periods. matches are deleted
     find "${wd}/${data}/" -maxdepth 1 -not -iname ".${timestamp}*" -regextype posix-extended -regex "${find_regex}" -atime +7 -type f -delete
   printf 'done.\n'
 }
@@ -440,8 +440,8 @@ emergency_cleanup(){
 
     # if the metadata extraction is running inside this instance during fail (i.e. lock file has been set with current timestamp)
     if [[ -n "${lockfile}" ]] && [[ -f "${lockfile}" ]]; then
-      # clear out the entire data folder for all checks so next check starts fresh
-      # use safety measures (${string:?}) on variables to prevent `rm` wiping out everything from root (/) if $wd or $data is empty for an unforseen reason (https://github.com/koalaman/shellcheck/wiki/SC2115)
+      # clear out the entire data folder for all checks so next check can start fresh
+      # use safety measures (i.e. ${string:?}) on variables to prevent `rm` wiping out everything from root (/) if $wd or $data is empty for an unforseen reason (https://github.com/koalaman/shellcheck/wiki/SC2115)
       rm --recursive --force "${wd:?}/${data:?}/"
       # also clean up this session's file lock
       rm --force "${lockfile}"
@@ -452,29 +452,29 @@ emergency_cleanup(){
   printf 'done.\n'
 
   # stop all currently running checks on emergency fail
-    # use ${0##*/} to retrieve the name of this file, use `pkill` to send the end process signal we want
+    # use ${fullpath_and_name} to retrieve the name of this file to pass to `pkill` to send the end process signal we want
     # SIGINT is essentially CTRL + C
     # SIGTERM gracefully kills the process whereas SIGKILL kills the process immediately
     # SIGTERM signal can be handled, ignored and blocked but SIGKILL cannot be handled or blocked
     # SIGTERM doesn’t kill the child processes, SIGKILL kills the child processes as well
       echo "Stopping all concurrent running checks."
       # list all currently running instances of this script
-      ##pgrep --list-name --full "${fullpath_and_name}"
+      ##pgrep --list-name --full "${fullpath_and_name}" # redundant cos pkill shows you what is killed anyway
       # kill all currently running instances this script
       # --full for searching in full process name, --signal SIGTERM for 'terminate' signal, --echo display list of what was killed (doesn't work if we're killing *this* instance too)
       pkill --full --echo --signal SIGTERM "${fullpath_and_name}"
       # `pkill` obviously kills this at above line, so lines from now on are never executed, but are included for handling when `pkill` is commented out
 
-  # stop here with exit status 1 for fail
+  # stop here with exit status 1 for fail if we get there for any reason
   exit 1
 }
 
 
 cdn-upcheck() {
-  # common flow for checking and handling
-  # assumes $filename has been set
+  # consolodated and common flow for all checking and handling
+  # this function assumes $filename has been set, as that is what list is used to iterate checks on
 
-  # determine 1st or 2nd pass checking
+  # determine if this invocation is the 1st or 2nd pass
   # if pass is not set for whatever reason, assume 1st pass conditions so we don't have an empty string
   if [[ -z "${pass}" ]]; then
     pass=1
@@ -504,7 +504,7 @@ cdn-upcheck() {
       cdnid="${cdn_prefix}${id}"
     else
       id="-EMPTY"
-      cdnid="         "
+      cdnid="         " # add 'padding' for empty chars to keep check stream pretty
     fi
 
 
@@ -513,10 +513,10 @@ cdn-upcheck() {
     # sleep a little bit before each test, up to ~3 seconds
     intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
 
-    # use cURL to check the upload link
+    # use `curl` to check the upload link
       # over-ride link to test logic for specific HTTP error codes using httpbin.org
       ##link=http://httpbin.org/status/404
-      # -L to follow redirects, -o to set output to nothing --silent removes the progress meter, --head makes a HEAD HTTP request instead of GET, --write-out prints the required status code
+      # --location to follow redirects, --output to set output/write file to nothing, --silent removes the progress meter, --head makes a HEAD HTTP request instead of GET, --write-out prints the required status code
       httpStatus="$(curl --location --output /dev/null --silent --head --write-out '%{http_code}' "${link}" 2> /dev/null || true)"
         # over-ride httpStatus for testing    
         ##httpStatus="522"
@@ -526,7 +526,7 @@ cdn-upcheck() {
     # logic that does things depending on status returned
 
     if [[ "${httpStatus}" == 200 ]]; then
-      # sleep a little bit before next cURL request, up to ~3 seconds
+      # sleep a little bit before next `curl` request, up to ~3 seconds
       intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
       # identifier seems ok, so now grab metadata to see if it has been marked as high bandwidth
       curl --location --silent --output "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" "${link}" || true
@@ -627,11 +627,13 @@ cdn-upcheck() {
             fi
         else
           # failed to get XML data
+          # on 1st pass
           if [[ "${pass}" == 1 ]]; then
             checkstream "${redo}" "Failed to get XML data." "${link}"
             # log the link to try it again later
             echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
           fi
+          # on 2nd pass
           if [[ "${pass}" == 2 ]]; then
             checkstream "${fail}" "Failed to get XML data." "${link}"
           fi
@@ -640,10 +642,10 @@ cdn-upcheck() {
 
 
     elif [[ "${httpStatus}" == 000 ]]; then
-      # sleep a little bit before next cURL request, up to ~3 seconds
+      # sleep a little bit before next `curl` request, up to ~3 seconds
       intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
-      # 000 could mean lots of things. connection refused, SSL fail, unable to resolve DNS, etc. run cURL again to try again and also find out a little more based on its exit code
-      # use 2>&1 to redirect cURLs output of both STDOUT and STDERR to the $failState variable and catch cURLs exitcode
+      # 000 could mean lots of things. connection refused, SSL fail, unable to resolve DNS, etc. run `curl` again to try again and also find out a little more based on its exit code
+      # use 2>&1 to redirect curl's output of both STDOUT and STDERR to the $failState variable and catch curl's exitcode
       failState=$(curl --show-error --silent --location "${link}" > /dev/null 2>&1) exitCode=$? || true
       # over-ride exitCode for testing
       ##exitCode="99"
@@ -651,7 +653,7 @@ cdn-upcheck() {
       # parse different actions depending on type of error. common ones are:
       if [[ $exitCode == 0 ]]; then
         # 0 is paradoxically all fine, proceed as usual, i.e. do nothing now
-        checkstream "${ok}" "cURL returned 0 as an exitcode, but otherwise OK."
+        checkstream "${ok}" "curl returned 0 as an exitcode, but otherwise OK."
 
       elif [[ $exitCode == 6 ]]; then
         # 6 is couldn't resolve host
@@ -716,11 +718,11 @@ cdn-upcheck() {
             fi
             # on 2nd pass
             if [[ "${pass}" == 2 ]]; then
-              # sleep a little bit before next cURL request, up to ~3 seconds
+              # check out where identifier is being redirected to by running `curl` on it again
+              # sleep a little bit before next `curl` request, up to ~3 seconds
               intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
-              # still getting 302 temporary redirect, so check out where it's being redirected to by running cURL on it again
               redirectEnd="$(curl --show-error --silent --location --output /dev/null --write-out "%{url_effective}" --head "${link}" 2> /dev/null || true)"
-              # if cURL output returns normal metadata file, then assume the upload is OK
+              # if `curl` output returns normal metadata file, then assume the upload is OK
               # build that string to check it, does it end in /items/IDENTIFIER/IDENTIFIER_meta.xml
               expectedEndFile="$(sed 's#.*#items/&/&_meta.xml#' <<< "${identifier}")"
               if [[ "$redirectEnd" == *"$expectedEndFile" ]]; then
@@ -827,40 +829,41 @@ cdn-upcheck() {
 printf "Checking CDN uploads.\n\n"
 
 
-# find the "build date and time" of this file and if it's been changed since we last know, notify user
-if [[ -s "${wd}/.build" ]]; then
-  # the .build storage file exists and it's not empty so assume it's useful
-  last_build_date="$( < "${wd}/.build")"
-  current_build="$(date --reference="${fullpath_and_name}" ${timestamp_format})"
-  # test if build date and time has changed
-  if [[ "${last_build_date}" != "${current_build}" ]]; then
-    # build has changed since script last run, notify user about using this last new build
-    printf 'Using new build: %s\n\n' "${current_build}"
-    # update .build file
+# build version notification
+  # find the "build date and time" of this file and if it's been changed since we last know, notify user
+  if [[ -s "${wd}/.build" ]]; then
+    # the .build storage file exists and it's not empty so assume it's useful
+    last_build_date="$( < "${wd}/.build")"
+    current_build="$(date --reference="${fullpath_and_name}" ${timestamp_format})"
+    # test if build date and time has changed
+    if [[ "${last_build_date}" != "${current_build}" ]]; then
+      # build has changed since script last run, notify user about using this last new build
+      printf 'Using new build: %s\n\n' "${current_build}"
+      # update .build file
+      date --reference="${fullpath_and_name}" ${timestamp_format} > "${wd}/.build"
+    fi
+  else
+    # .build not yet known, so find out
+    # get the modification date and time using `date --reference` of this script's path and name, and write that to a file
     date --reference="${fullpath_and_name}" ${timestamp_format} > "${wd}/.build"
+    chmod 600 "${wd}/.build"
+    current_build="$( < "${wd}/.build")"
+    printf 'Using new build: %s\n\n' "${current_build}"
   fi
-else
-  # .build not yet known, so find out
-  # get the modification date and time using `date --reference` of this script's name, i.e. $0, and write that to a file
-  date --reference="${fullpath_and_name}" ${timestamp_format} > "${wd}/.build"
-  chmod 600 "${wd}/.build"
-  current_build="$( < "${wd}/.build")"
-  printf 'Using new build: %s\n\n' "${current_build}"
-fi
 
 
-
-# check if persistent lockfile exists for metadata extraction and if prior script is busy then stop everything/skip this check
-if [[ -f "/run/lock/.cdn-upcheck-metadata.lock" ]]; then
-  # find time lockfile was modified; %l %M %P format renders as 9:30pm for example
-  lockfiletime="$(date --reference="/run/lock/.cdn-upcheck-metadata.lock" +%l:%M%P)"
-  # remove leading space from the date output using parameter expansion (https://wiki.bash-hackers.org/syntax/pe)
-  removeleadingspace="${lockfiletime%%[^[:blank:]]*}"
-  lockfiletime="${lockfiletime#"${removeleadingspace}"}"
-  echo "*** ABORT *** Building check list still running from ${lockfiletime}. Stopping."
-  cleanup
-  exit 1
-fi
+# lock file handling
+  # check if persistent lockfile exists for metadata extraction and if prior script is busy then stop everything/skip this check
+  if [[ -f "/run/lock/.cdn-upcheck-metadata.lock" ]]; then
+    # find time lockfile was modified; %l %M %P format renders as 9:30pm for example
+    lockfiletime="$(date --reference="/run/lock/.cdn-upcheck-metadata.lock" +%l:%M%P)"
+    # remove leading space from the date output using parameter expansion (https://wiki.bash-hackers.org/syntax/pe)
+    removeleadingspace="${lockfiletime%%[^[:blank:]]*}"
+    lockfiletime="${lockfiletime#"${removeleadingspace}"}"
+    echo "*** ABORT *** Building check list still running from ${lockfiletime}. Stopping."
+    cleanup
+    exit 1
+  fi
 
 
 # `mysqldump` current database to extract MP4 links from. if that fails, we crash gracefully by invoking emergency_cleanup()
@@ -938,11 +941,11 @@ printf '\n\nWaiting %s before we begin... ' "${wait}"
 printf 'done.\n'
 
 # write the date and time now
-starttime="$(date '+%l:%M:%S %P.')"
+starttime="$(date '+%l:%M:%S %P')"
 # remove leading space from the date output using parameter expansion (https://wiki.bash-hackers.org/syntax/pe)
 removeleadingspace="${starttime%%[^[:blank:]]*}"
 starttime="${starttime#"${removeleadingspace}"}"
-printf '\nStarting check now, at %s\n\n\n' "${starttime}"
+printf '\nStarting check now, at %s.\n\n\n' "${starttime}"
 
 
 
@@ -951,8 +954,6 @@ printf '\nStarting check now, at %s\n\n\n' "${starttime}"
 # FIRST PASS
 cdn-upcheck 1
 printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
-
-
 
 
 # SECOND PASS IF NEED BE
@@ -1119,7 +1120,7 @@ printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
         printf 'done.\n'
       fi
 
-    # send e-mail about unknown failures returned with 000 http code but specific cURL error
+    # send e-mail about unknown failures returned with 000 http code but specific `curl` error
       # check if log file exists and is not empty (-s)
       if [[ -s "${wd}/${data}/.${timestamp}-errors-000" ]]; then
         # prepend a little note to the log before e-mailing it
