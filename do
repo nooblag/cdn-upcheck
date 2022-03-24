@@ -174,17 +174,17 @@ rendertimer(){
   S=$((seconds % 60))
 
   # set up "x day(s), x hour(s), x minute(s) and x second(s)" language
-  [[ "$D" -eq "1" ]] && D_tag="day" || D_tag="days"
-  [[ "$H" -eq "1" ]] && H_tag="hour" || H_tag="hours"
-  [[ "$M" -eq "1" ]] && M_tag="minute" || M_tag="minutes"
-  [[ "$S" -eq "1" ]] && S_tag="second" || S_tag="seconds"
+  if [[ "$D" -eq "1" ]]; then D_tag="day"; else D_tag="days"; fi
+  if [[ "$H" -eq "1" ]]; then H_tag="hour"; else H_tag="hours"; fi
+  if [[ "$M" -eq "1" ]]; then M_tag="minute"; else M_tag="minutes"; fi
+  if [[ "$S" -eq "1" ]]; then S_tag="second"; else S_tag="seconds"; fi
 
   # put parts from above that exist into an array for sentence formatting
   parts=()
-  [[ "$D" -gt "0" ]] && parts+=("$D $D_tag")
-  [[ "$H" -gt "0" ]] && parts+=("$H $H_tag")
-  [[ "$M" -gt "0" ]] && parts+=("$M $M_tag")
-  [[ "$S" -gt "0" ]] && parts+=("$S $S_tag")
+  if [[ "$D" -gt "0" ]]; then parts+=("$D $D_tag"); fi
+  if [[ "$H" -gt "0" ]]; then parts+=("$H $H_tag"); fi
+  if [[ "$M" -gt "0" ]]; then parts+=("$M $M_tag"); fi
+  if [[ "$S" -gt "0" ]]; then parts+=("$S $S_tag"); fi
 
   # construct the sentence
   result=""
@@ -192,7 +192,9 @@ rendertimer(){
   for (( currentpart = 0; currentpart < lengthofparts; currentpart++ )); do
     result+="${parts[$currentpart]}"
     # if current part is not the last portion of the sentence, append a comma
-    [[ "$currentpart" -ne $((lengthofparts-1)) ]] && result+=", "
+    if [[ "$currentpart" -ne $((lengthofparts-1)) ]]; then result+=", "; fi
+    # if current part will be the last part of the sentence, say 'and'
+    if [[ "$currentpart" -eq $((lengthofparts-2)) ]]; then result+="and "; fi
   done
   echo "${result}"
 }
