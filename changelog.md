@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## 4.0.8 - 2022/03/26
+ * improve `rendertimer()` to be more verbose with some logic for readability
+ * improve comments and some formatting throughout
+ * improve the contents of HTTP error alerts to use shorter text in some and better context in others
+
+---
+
 ## 4.0.7 - 2022/03/20
  * modify lockfile mechanism to replace use of `hexdump` which has possibility of being unreliable, with `mktemp` instead
  * improve mechanism to only create the string and lockfile for locking if `extractmetadata_engine()` starts and is doing the initial .xml-urls parsing
