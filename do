@@ -462,7 +462,7 @@ emergency_cleanup(){
       ##pgrep --list-name --full "${fullpath_and_name}" # redundant cos pkill shows you what is killed anyway
       # kill all currently running instances this script
       # --full for searching in full process name, --signal SIGTERM for 'terminate' signal, --echo display list of what was killed (doesn't work if we're killing *this* instance too)
-      pkill --full --echo --signal SIGTERM "${fullpath_and_name}"
+      pkill --full --echo --signal SIGTERM "bash ${fullpath_and_name}"
       # `pkill` obviously kills this at above line, so lines from now on are never executed, but are included for handling when `pkill` is commented out
 
   # stop here with exit status 1 for fail if we get there for any reason
