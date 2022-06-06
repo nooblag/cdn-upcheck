@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## 4.0.9 - 2022/06/06
+ * improve `pkill` pattern in `emergency_cleanup()` to only match instances of the script running with `bash` rather than killing script usage with other applications (such as editing for example!)
+ * improve e-mail alert messages
+ * improve some comments throughout
+
+---
+
 ## 4.0.8 - 2022/03/26
  * improve `rendertimer()` to be more verbose with some logic for readability
  * improve comments and some formatting throughout
