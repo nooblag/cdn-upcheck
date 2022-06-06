@@ -797,6 +797,7 @@ cdn-upcheck() {
 
     else
       # catch codes not defined above
+      # first, build variable of what the HTTP code is to import its literal message later using ${!var}
       httpStatusInfo="http_${httpStatus}"
         # on 1st pass
           if [[ "${pass}" == 1 ]]; then
