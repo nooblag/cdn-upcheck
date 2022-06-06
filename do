@@ -749,7 +749,7 @@ cdn-upcheck() {
         if [[ "${pass}" == 2 ]]; then
           checkstream "${fail}" "${link}"
           # send an e-mail about removal right away
-          printf '%s may be removed.\n\n%s reported 403 error just now.' "${cdn_origin_url}/details/${identifier}" "${link}" | mail -s "cdn-upcheck [403] ${identifier}" "${notify}"
+          printf '%s may be removed.\n\n%s reported 403 error after rechecking.' "${cdn_origin_url}/details/${identifier}" "${link}" | mail -s "cdn-upcheck [403] ${identifier}" "${notify}"
         fi
 
 
@@ -767,7 +767,7 @@ cdn-upcheck() {
         if [[ "${pass}" == 2 ]]; then
           checkstream "${fail}" "${link}"
           # send an e-mail about removal right away
-          printf '%s may be removed.\n\n%s reported 404 error just now.' "${cdn_origin_url}/details/${identifier}" "${link}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
+          printf '%s may be removed.\n\n%s reported 404 error after rechecking.' "${cdn_origin_url}/details/${identifier}" "${link}" | mail -s "cdn-upcheck [404] ${identifier}" "${notify}"
         fi
 
 
