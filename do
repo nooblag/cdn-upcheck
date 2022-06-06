@@ -1102,7 +1102,7 @@ printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
       # check if log file exists and is not empty (-s)
       if [[ -s "${wd}/${data}/.${timestamp}-errors-000-6" ]]; then
         # prepend a little note to the log before e-mailing it
-        printf '%s\n\n%s' "Here is a list of identifiers that did not resolve DNS just now." "$(cat "${wd}/${data}/.${timestamp}-errors-000-6")" > "${wd}/${data}/.${timestamp}-errors-000-6"
+        printf '%s\n\n%s' "Here is a list of identifiers that did not resolve DNS during rechecking:" "$(cat "${wd}/${data}/.${timestamp}-errors-000-6")" > "${wd}/${data}/.${timestamp}-errors-000-6"
         # email it
         printf 'Could not resolve some hosts, sending e-mail log... '
         mail -s "cdn-upcheck [DNS Failures]" "${notify}" < "${wd}/${data}/.${timestamp}-errors-000-6"
@@ -1113,7 +1113,7 @@ printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
       # check if log file exists and is not empty (-s)
       if [[ -s "${wd}/${data}/.${timestamp}-errors-000-7" ]]; then
         # prepend a little note to the log before e-mailing it
-        printf '%s\n\n%s' "Here is a list of identifiers that failed to connect for an uptime test just now." "$(cat "${wd}/${data}/.${timestamp}-errors-000-7")" > "${wd}/${data}/.${timestamp}-errors-000-7"
+        printf '%s\n\n%s' "Here is a list of identifiers that failed to connect for an uptime test recheck:" "$(cat "${wd}/${data}/.${timestamp}-errors-000-7")" > "${wd}/${data}/.${timestamp}-errors-000-7"
         # email it
         printf 'Connection(s) refused, sending e-mail log... '
         mail -s "cdn-upcheck [Failed Connections]" "${notify}" < "${wd}/${data}/.${timestamp}-errors-000-7"
@@ -1124,7 +1124,7 @@ printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
       # check if log file exists and is not empty (-s)
       if [[ -s "${wd}/${data}/.${timestamp}-errors-000" ]]; then
         # prepend a little note to the log before e-mailing it
-        printf '%s\n\n%s' "Here is a list of identifiers that returned some kind of zero status code just now." "$(cat "${wd}/${data}/.${timestamp}-errors-000")" > "${wd}/${data}/.${timestamp}-errors-000"
+        printf '%s\n\n%s' "Here is a list of identifiers that returned some kind of zero status code during rechecking:" "$(cat "${wd}/${data}/.${timestamp}-errors-000")" > "${wd}/${data}/.${timestamp}-errors-000"
         # email it
         printf 'Zero status returned, sending e-mail log... '
         mail -s "cdn-upcheck [Zero Status Failures]" "${notify}" < "${wd}/${data}/.${timestamp}-errors-000"
@@ -1148,7 +1148,7 @@ printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
     # check if log file exists and is not empty (-s)
     if [[ -s "${wd}/${data}/.${timestamp}-errors-else" ]]; then
       # prepend a little note to the log before e-mailing it
-      printf '%s\n\n%s' "Here is a list of identifiers or files that failed an uptime test just now." "$(cat "${wd}/${data}/.${timestamp}-errors-else")" > "${wd}/${data}/.${timestamp}-errors-else"
+      printf '%s\n\n%s' "Here is a list of identifiers or files that failed an uptime test during rechecking:" "$(cat "${wd}/${data}/.${timestamp}-errors-else")" > "${wd}/${data}/.${timestamp}-errors-else"
       # email it
       printf 'Catch-all-rule error(s) returned, sending e-mail log... '
       mail -s "cdn-upcheck [Catch-all Failures]" "${notify}" < "${wd}/${data}/.${timestamp}-errors-else"
