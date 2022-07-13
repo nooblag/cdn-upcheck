@@ -547,7 +547,19 @@ cdn-upcheck() {
             # now that metadata is confirmed to be good, check the MP4 file(s) for current identifier also exist and are available too, as we expect
             # use `ack` to search list of MP4 matches extracted from database dump for files that reference the current identifier
             # build list of files that begin with http or https and end with .mp4
-            "${wd}/.inc/ack" --nofilter --output='$&' "https??://.*/${identifier}/.*\.mp4" "${wd}/${data}/.${timestamp}-mp4-urls-sorted" > "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
+            if [[ "${pass}" == 2 ]]; then
+              # use the latest list that has been medtadata refreshed, otherwise, use the main list created at the start of this session
+              mp4checklist_tomatch="${wd}/${data}/.${timestamp}-renewed-mp4-urls-sorted"
+              mp4checklist="${wd}/${data}/.${timestamp}-${identifier}-renewed-mp4-checklist"
+            else
+              # use main list
+              mp4checklist_tomatch="${wd}/${data}/.${timestamp}-mp4-urls-sorted"
+              mp4checklist="${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
+            fi
+            
+            # build the checklist
+            "${wd}/.inc/ack" --nofilter --output='$&' "https??://.*/${identifier}/.*\.mp4" "${mp4checklist_tomatch}" > "${mp4checklist}"
+
             # check the file(s) exist
               while read -r mp4url; do
                 # sleep a little bit before each test, up to ~5 seconds
@@ -620,9 +632,9 @@ cdn-upcheck() {
                 fi
 
               # finished making the check list
-              done < "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
+              done < "${mp4checklist}"
               # clean up temporary file now that we're done
-              rm --force "${wd}/${data}/.${timestamp}-${identifier}-mp4-checklist"
+              rm --force "${mp4checklist}"
               rm --force "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp"
             fi
         else
@@ -994,6 +1006,30 @@ printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
         }
         print
       }' "${wd}/${data}/.${timestamp}-renewed-xml-urls" "${wd}/${data}/.${timestamp}-xml-urls-sorted" > "${wd}/${data}/.xml-urls-sorted"
+
+      # also do similar to above to write changes to what each identifier's MP4 files are in the main lists
+      # `awk` solution thanks to @SasaKanjuh, comments added
+      # must use -F for field separator for older version /usr/bin/mawk on target system
+      awk -F '/' ' {
+        # get each identifier
+        identifier = $(NF - 1)
+
+        # if we are going through the XML URLs (the first list), i.e. NR == FNR
+        if (NR == FNR) {
+          # strip off the last portion of the URL line from the last slash / until the end
+          sub("/[^/]*$", "")
+          # assign the first portion of the URL line to an array under each specific identifier
+          first_portion[identifier] = $0
+        }
+
+        # if we are in the second list then get the first portion of the line using common identifier, and append the last portion taken from above
+        else print first_portion[identifier] "/" $NF
+      }' "${wd}/${data}/.xml-urls-sorted" "${wd}/${data}/.mp4-matches-sorted" > "${wd}/${data}/.mp4-urls"
+
+      # sort this list to ensure it's still clean, no duplicates
+      sort --unique "${wd}/${data}/.mp4-urls" > "${wd}/${data}/.mp4-urls-sorted"
+      # create a new list MP4 files reference list to use for 2nd pass checking
+      cp "${wd}/${data}/.mp4-urls-sorted" "${wd}/${data}/.${timestamp}-${identifier}-renewed-mp4-checklist"
 
 
       # now re-check from renewed list
