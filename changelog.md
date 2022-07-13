@@ -1,4 +1,9 @@
 ﻿# Changelog
+ 
+## 4.0.10 - 2022/07/13
+ * fix bug in 2nd pass where checking MP4 files was using old metadata that hadn't been refreshed
+
+---
 
 ## 4.0.9 - 2022/06/06
  * improve `pkill` pattern in `emergency_cleanup()` to only match instances of the script running with `bash` rather than killing script usage with other applications (such as editing for example!)
