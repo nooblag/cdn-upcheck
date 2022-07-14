@@ -1029,7 +1029,7 @@ printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
       # sort this list to ensure it's still clean, no duplicates
       sort --unique "${wd}/${data}/.mp4-urls" > "${wd}/${data}/.mp4-urls-sorted"
       # create a new list MP4 files reference list to use for 2nd pass checking
-      cp "${wd}/${data}/.mp4-urls-sorted" "${wd}/${data}/.${timestamp}-${identifier}-renewed-mp4-checklist"
+      cp "${wd}/${data}/.mp4-urls-sorted" "${wd}/${data}/.${timestamp}-renewed-mp4-urls-sorted"
 
 
       # now re-check from renewed list
