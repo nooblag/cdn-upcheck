@@ -1,4 +1,9 @@
 ﻿# Changelog
+
+## 4.0.11 - 2022/07/23
+ * improve error message in checkstream when checking contents of XML file for high bandwidth and MP4 files
+
+---
  
 ## 4.0.10 - 2022/07/13
  * fix bug in 2nd pass where checking MP4 files was using old metadata that hadn't been refreshed
