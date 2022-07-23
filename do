@@ -641,13 +641,13 @@ cdn-upcheck() {
           # failed to get XML data
           # on 1st pass
           if [[ "${pass}" == 1 ]]; then
-            checkstream "${redo}" "Failed to get XML data." "${link}"
+            checkstream "${redo}" "XML file empty." "${link}"
             # log the link to try it again later
             echo "${link}" >> "${wd}/${data}/.${timestamp}-links-tryagain"
           fi
           # on 2nd pass
           if [[ "${pass}" == 2 ]]; then
-            checkstream "${fail}" "Failed to get XML data." "${link}"
+            checkstream "${fail}" "XML file empty." "${link}"
           fi
         fi
 
