@@ -44,55 +44,55 @@ MAILTO='emailaddress@cmsdomain.com'
   #  6am,  1pm CDN
     00 06 * * * bash cdn-upcheck/do 6am
     30 06 * * * bash cdn-upcheck/do 6:30am
-  #  7am,  2pm CDN, coming into peak
+  #  7am,  2pm CDN
     00 07 * * * bash cdn-upcheck/do 7am
     30 07 * * * bash cdn-upcheck/do 7:30am
-  #  8am,  3pm CDN, PEAK
+  #  8am,  3pm CDN
     00 08 * * * bash cdn-upcheck/do 8am
     30 08 * * * bash cdn-upcheck/do 8:30am
-  #  9am,  4pm CDN, PEAK
+  #  9am,  4pm CDN
     00 09 * * * bash cdn-upcheck/do 9am
     30 09 * * * bash cdn-upcheck/do 9:30am
-  # 10am,  5pm CDN, PEAK
+  # 10am,  5pm CDN
     00 10 * * * bash cdn-upcheck/do 10am
     30 10 * * * bash cdn-upcheck/do 10:30am
-  # 11am,  6pm CDN, PEAK
+  # 11am,  6pm CDN
     00 11 * * * bash cdn-upcheck/do 11am
     30 11 * * * bash cdn-upcheck/do 11:30am
-  # noon,  7pm CDN, PEAK
+  # noon,  7pm CDN PEAK
     00 12 * * * bash cdn-upcheck/do 12pm
     30 12 * * * bash cdn-upcheck/do 12:30pm
-  #  1pm,  8pm CDN, PEAK
+  #  1pm,  8pm CDN PEAK
     00 13 * * * bash cdn-upcheck/do 1pm
     30 13 * * * bash cdn-upcheck/do 1:30pm
-  #  2pm,  9pm CDN, PEAK
+  #  2pm,  9pm CDN PEAK
     00 14 * * * bash cdn-upcheck/do 2pm
     30 14 * * * bash cdn-upcheck/do 2:30pm
-  #  3pm, 10pm CDN, PEAK
+  #  3pm, 10pm CDN PEAK
     00 15 * * * bash cdn-upcheck/do 3pm
     30 15 * * * bash cdn-upcheck/do 3:30pm
-  #  4pm, 11pm CDN, PEAK
+  #  4pm, 11pm CDN PEAK
     00 16 * * * bash cdn-upcheck/do 4pm
     30 16 * * * bash cdn-upcheck/do 4:30pm
-  #  5pm, midnight at CDN, coming out of peak
+  #  5pm, midnight CDN
     00 17 * * * bash cdn-upcheck/do 5pm
     30 17 * * * bash cdn-upcheck/do 5:30pm
   #  6pm,  1am CDN
     00 18 * * * bash cdn-upcheck/do 6pm
     30 18 * * * bash cdn-upcheck/do 6:30pm
-  #  7pm,  2am CDN
+  #  7pm PEAK,  2am CDN
     00 19 * * * bash cdn-upcheck/do 7pm
     30 19 * * * bash cdn-upcheck/do 7:30pm
-  #  8pm,  3am CDN
+  #  8pm PEAK,  3am CDN
     00 20 * * * bash cdn-upcheck/do 8pm
     30 20 * * * bash cdn-upcheck/do 8:30pm
-  #  9pm,  4am CDN
+  #  9pm PEAK,  4am CDN
     00 21 * * * bash cdn-upcheck/do 9pm
     30 21 * * * bash cdn-upcheck/do 9:30pm
-  # 10pm,  5am CDN
+  # 10pm PEAK,  5am CDN
     00 22 * * * bash cdn-upcheck/do 10pm
     30 22 * * * bash cdn-upcheck/do 10:30pm
-  # 11pm,  6am CDN
+  # 11pm PEAK,  6am CDN
     00 23 * * * bash cdn-upcheck/do 11pm
     30 23 * * * bash cdn-upcheck/do 11:30pm
 ```
