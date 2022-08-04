@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 4.0.12 - 2022/08/04
+ * refactor `checkconfigvars()` as linear code instead of unnecessary function, and prettify the array of variables to check
+
+---
+
 ## 4.0.11 - 2022/07/23
  * improve error message in checkstream when checking contents of XML file for high bandwidth and MP4 files
 
