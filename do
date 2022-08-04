@@ -126,22 +126,31 @@
 
 
   # check we have non-empty config settings available before continuing
-  checkconfigvars() {
-    var_names=("$@")
-    for var_name in "${var_names[@]}"; do
+    check_var_names=(
+      notify
+      cdn_origin_url
+      cdn_url
+      mysqldump_db
+      mysqldump_user
+      mysqldump_pw
+      cdn_prefix
+      cdn_domain
+      cdn_acc_email
+      cdn_api_key
+      cdn_origin_prefix
+      cdn_origin_domain
+      refreshtime
+    )
+    for var_name in "${check_var_names[@]}"; do
       if [[ -z "${!var_name}" ]]; then
-        echo "Configuration setting(s) not applied properly: check ${conf_dir}/.${var_name}"
-        var_still_unset=true
+        echo "Configuration setting(s) not set properly: check ${conf_dir}/.${var_name}"
+        var_unset=true
       fi
     done
-    if [[ -n "${var_still_unset}" ]]; then
+    if [[ -n "${var_unset}" ]]; then
       echo "Stopping."
       exit 1
     fi
-    # must return zero if not exit 1 above
-    return 0
-  }
-  checkconfigvars notify cdn_origin_url cdn_url mysqldump_db mysqldump_user mysqldump_pw cdn_prefix cdn_domain cdn_acc_email cdn_api_key cdn_origin_prefix cdn_origin_domain refreshtime
 
 
   # START TRAP FOR EMERGENCY GARBAGE COLLECTION
