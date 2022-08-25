@@ -76,7 +76,7 @@
 
   # set checkstream time formatting
   # e = day of week (space padded), b = month in 3 letters, then Hour Minutes Seconds
-  time='+%e-%b %H:%M:%S'
+  date_time='+%e-%b %H:%M:%S'
 
   # set time interval in minutes for when database refresh should happen, also used for garbage collection
   # e.g. refresh database and clear old temporary files after 720 minutes (12 hours)
@@ -418,7 +418,14 @@ checkstream(){
   #             h:MM:SS  x of xx  cdn123456  [ OK ]  200  id_FooBar   Error message.  https://cdnlink/if/needed"
   #             %s       %d of $d  %s         %s      %s   %s          %s              %s
   # $1 is OK or FAIL status, $2 is error message if needed, $3 is current CDN link (https://cdn123456/identifier/...)
-  printf '%s %*d of %d  %s\t%s  %s  %s  %s  %s\n' "$(date ${time})" $((${#totallines}+1)) "$counter" "$totallines" "${cdnid}" "${1}" "${httpStatus}" "${identifier}" "${2}" "${3}"
+  printf '%s %*d of %d  %s\t%s  %s  %s  %s  %s\n' "$(checkstream_timestamp)" $((${#totallines}+1)) "$counter" "$totallines" "${cdnid}" "${1}" "${httpStatus}" "${identifier}" "${2}" "${3}"
+}
+
+
+checkstream_timestamp(){
+  # returns the current date and time for use in checkstreams and email alerts
+  # $date_time var contains formatting specified above when setting up environment
+  date "${date_time}"
 }
 
 
@@ -467,12 +474,11 @@ emergency_cleanup(){
     # SIGTERM signal can be handled, ignored and blocked but SIGKILL cannot be handled or blocked
     # SIGTERM doesn’t kill the child processes, SIGKILL kills the child processes as well
       echo "Stopping all concurrent running checks."
-      # list all currently running instances of this script
-      ##pgrep --list-name --full "${fullpath_and_name}" # redundant cos pkill shows you what is killed anyway
       # kill all currently running instances this script
-      # --full for searching in full process name, --signal SIGTERM for 'terminate' signal, --echo display list of what was killed (doesn't work if we're killing *this* instance too)
-      pkill --full --echo --signal SIGTERM "bash ${fullpath_and_name}"
-      # `pkill` obviously kills this at above line, so lines from now on are never executed, but are included for handling when `pkill` is commented out
+      # --full for searching in the full command line of running processes, --signal SIGTERM for 'terminate' signal, --echo display list of what was killed
+      # pattern .* catches none or any paths before the name of this script, in the situations where this script is invoked "outside its path"
+      pkill --full --echo --signal SIGKILL "bash .*${0##*/}"
+      # `pkill` obviously kills this at above line, so if successful, lines from now on are never executed
 
   # stop here with exit status 1 for fail if we get there for any reason
   exit 1
@@ -1083,7 +1089,7 @@ printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
                 ip="$(host "${url}" | "${wd}/.inc/ack" --output='$&' "\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}" || true)"
                   if [[ -n "${ip}" ]]; then
                     # `host` returned an IP for upstream CDN server, it exists, so increase count and notify user
-                    printf '%s %s.%s  ->  %s' "$(date ${time})" "${cdn_prefix}${id}" "${cdn_domain}" "${ip}"
+                    printf '%s %s.%s  ->  %s' "$(checkstream_timestamp)" "${cdn_prefix}${id}" "${cdn_domain}" "${ip}"
 
                     # our website's subdomain we want to build, mapped with upstream CDN server
                     cdn_sub_domain="${cdn_prefix}${id}.${cdn_domain}" # cdnXXXXXX.cdn-upcheckdomain.tld
@@ -1123,7 +1129,7 @@ printf '\nFinished checking %s uploads.\n\n\n' "$totallines"
                       fi
                   else
                     # getting IP failed, but tell us what we're dealing with
-                    printf '%s %s.%s    *** not found ***\n' "$(date ${time})" "${cdn_prefix}${id}" "${cdn_domain}"
+                    printf '%s %s.%s    *** not found ***\n' "$(checkstream_timestamp)" "${cdn_prefix}${id}" "${cdn_domain}"
                   fi
               else
                 # id extraction failed, but tell us what we're dealing with
