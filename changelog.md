@@ -2,6 +2,8 @@
 
 ## 4.0.13 - 2022/08/25
  * switch to 24-hour time in checkstream and also log day and month (which is more useful for error messaging long-term)
+ * move checkstream date calls into `checkstream_timestamp()`
+ * improve `pkill` pattern in `emergency_cleanup()` to kill other concurrent instances more cleanly/predictably
 
 ---
 
