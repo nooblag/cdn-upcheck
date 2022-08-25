@@ -74,9 +74,9 @@
   timestamp_format='+%g%m%d%H%M%S'
   timestamp=$(date ${timestamp_format})
 
-  # set up check stream time formatting
-  # l = hour with leading zero, M = double digit minutes, S = double digit seconds
-  time='+%l:%M:%S'
+  # set checkstream time formatting
+  # e = day of week (space padded), b = month in 3 letters, then Hour Minutes Seconds
+  time='+%e-%b %H:%M:%S'
 
   # set time interval in minutes for when database refresh should happen, also used for garbage collection
   # e.g. refresh database and clear old temporary files after 720 minutes (12 hours)
