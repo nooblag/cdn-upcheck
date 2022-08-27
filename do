@@ -74,10 +74,6 @@
   timestamp_format='+%g%m%d%H%M%S'
   timestamp=$(date ${timestamp_format})
 
-  # set checkstream time formatting
-  # e = day of week (space padded), b = month in 3 letters, then Hour Minutes Seconds
-  date_time='+%e-%b %H:%M:%S'
-
   # set time interval in minutes for when database refresh should happen, also used for garbage collection
   # e.g. refresh database and clear old temporary files after 720 minutes (12 hours)
   refreshtime="$( < "${conf_dir}/.refreshtime")"
@@ -424,8 +420,8 @@ checkstream(){
 
 checkstream_timestamp(){
   # returns the current date and time for use in checkstreams and email alerts
-  # $date_time var contains formatting specified above when setting up environment
-  date "${date_time}"
+  # e = day of week (space padded), b = month in 3 letters, k = hour in 24hr time (space padded), then Minutes Seconds
+  date '+%e-%b %k:%M:%S'
 }
 
 
