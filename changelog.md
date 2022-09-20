@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 4.0.14 - 2022/09/21
+ * add 3 more tabs to MP4 check warning/error/redo messages (needed more padding after recent date changes)
+
+---
+
 ## 4.0.13 - 2022/08/25
  * switch to 24-hour time in checkstream and also log day and month (which is more useful for error messaging long-term)
  * move checkstream date calls into `checkstream_timestamp()`
