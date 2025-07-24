@@ -65,6 +65,8 @@
   cdn_origin_prefix="$( < "${conf_dir}/.cdn_origin_prefix")" # this should be the upstream CDN providers non-whitelabel CDN prefix, i.e. [foo] part of fooXXXXXX.region.upstreamhost.com
   cdn_origin_domain="$( < "${conf_dir}/.cdn_origin_domain")" # this should be the domain for the non-whitelabel CDN provider, i.e. [region.upstreamhost.com] part of fooXXXXXX.region.upstreamhost.com
 
+  # set globals for curl, like useragent, etc
+  curlconf="${wd}/${conf_dir}/curl.conf"
 
   # set stopwatch to keep track of total run time, starting from now
   start=$(date +%s)
@@ -253,7 +255,7 @@ extractmetadata_engine(){
     intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
 
     # fetch metadata from /metadata JSON and save it to temp file for further parsing
-    curl --silent "${cdn_origin_url}/metadata/${identifier}" > "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" || true
+    curl --config "${curlconf}" --silent "${cdn_origin_url}/metadata/${identifier}" > "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp" || true
     # test if `curl` output starts with an { as expected, if not, the site is down or we have JSON error, so fall back to cdn.cmsdomain.com default
       if read -r -n1 char < "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp"; [[ $char = "{" ]]; then
         # yes, metadata starts with { but now check if the metadata returned is empty, i.e. {}
@@ -528,7 +530,7 @@ cdn-upcheck() {
       # over-ride link to test logic for specific HTTP error codes using httpbin.org
       ##link=http://httpbin.org/status/404
       # --location to follow redirects, --output to set output/write file to nothing, --silent removes the progress meter, --head makes a HEAD HTTP request instead of GET, --write-out prints the required status code
-      httpStatus="$(curl --location --output /dev/null --silent --head --write-out '%{http_code}' "${link}" 2> /dev/null || true)"
+      httpStatus="$(curl --config "${curlconf}" --header 'upcheck:true' --location --output /dev/null --silent --head --write-out '%{http_code}' "${link}" 2> /dev/null || true)"
         # over-ride httpStatus for testing    
         ##httpStatus="522"
 
@@ -540,7 +542,7 @@ cdn-upcheck() {
       # sleep a little bit before next `curl` request, up to ~3 seconds
       intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
       # identifier seems ok, so now grab metadata to see if it has been marked as high bandwidth
-      curl --location --silent --output "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" "${link}" || true
+      curl --config "${curlconf}" --header 'upcheck:true' --location --silent --output "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" "${link}" || true
         # check XML data was fetched OK
         if [[ -s "${wd}/${data}/.${timestamp}-${identifier}-xml-data-tmp" ]]; then
           # XML content exists, now `grep` it to check if identifier has been marked as high bandwidth
@@ -576,7 +578,7 @@ cdn-upcheck() {
                 # sleep a little bit before each test, up to ~5 seconds
                 intwait="$(((RANDOM % 4)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
                 # check the status of the current URL
-                mp4Status="$(curl --location --output /dev/null --silent --head --write-out '%{http_code}' "${mp4url}" 2> /dev/null || true)"
+                mp4Status="$(curl --config "${curlconf}" --header 'upcheck:true' --location --output /dev/null --silent --head --write-out '%{http_code}' "${mp4url}" 2> /dev/null || true)"
 
                 # if http_code is empty due to a timeout or other remote failure, say so
                 if [[ -z "${mp4Status}" ]]; then
@@ -669,7 +671,7 @@ cdn-upcheck() {
       intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
       # 000 could mean lots of things. connection refused, SSL fail, unable to resolve DNS, etc. run `curl` again to try again and also find out a little more based on its exit code
       # use 2>&1 to redirect curl's output of both STDOUT and STDERR to the $failState variable and catch curl's exitcode
-      failState=$(curl --show-error --silent --location "${link}" > /dev/null 2>&1) exitCode=$? || true
+      failState=$(curl --config "${curlconf}" --header 'upcheck:true' --show-error --silent --location "${link}" > /dev/null 2>&1) exitCode=$? || true
       # over-ride exitCode for testing
       ##exitCode="99"
 
@@ -744,7 +746,7 @@ cdn-upcheck() {
               # check out where identifier is being redirected to by running `curl` on it again
               # sleep a little bit before next `curl` request, up to ~3 seconds
               intwait="$(((RANDOM % 2)+1)).$(((RANDOM % 999)+1))s"; sleep "$intwait";
-              redirectEnd="$(curl --show-error --silent --location --output /dev/null --write-out "%{url_effective}" --head "${link}" 2> /dev/null || true)"
+              redirectEnd="$(curl --config "${curlconf}" --header 'upcheck:true' --show-error --silent --location --output /dev/null --write-out "%{url_effective}" --head "${link}" 2> /dev/null || true)"
               # if `curl` output returns normal metadata file, then assume the upload is OK
               # build that string to check it, does it end in /items/IDENTIFIER/IDENTIFIER_meta.xml
               expectedEndFile="$(sed 's#.*#items/&/&_meta.xml#' <<< "${identifier}")"
