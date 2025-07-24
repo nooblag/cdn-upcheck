@@ -1,5 +1,7 @@
 # don't publish configs
+# except curl
 .conf/
+!.conf/curl.conf
 
 # don't sync data storage
 .data/
