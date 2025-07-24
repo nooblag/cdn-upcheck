@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 4.0.15 - 2024/07/29
+ * add global config setting for all `curl` usages, including subshells
+
+---
+
 ## 4.0.14 - 2022/09/21
  * add 3 more tabs to MP4 check warning/error/redo messages (needed more padding after recent date changes)
 
