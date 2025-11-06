@@ -231,7 +231,7 @@ extractmetadata_engine(){
   fi
 
   # notify what we're doing
-  printf 'Building check list...'
+  printf 'Building check list... '
 
   # set stopwatch to keep track of how long extraction process takes, starting from now
   extraction_start=$(date +%s)
@@ -903,7 +903,7 @@ printf "Checking CDN uploads.\n\n"
       printf 'Database dump is fresh enough, using it.\n\n'
       buildfiles || emergency_cleanup
     else
-      printf 'Updating database dump...'
+      printf 'Updating database dump... '
       dumpdatabase || emergency_cleanup
       printf 'done.\n'
       extractmetadata || emergency_cleanup
