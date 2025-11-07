@@ -208,7 +208,13 @@ rendertimer(){
 
 dumpdatabase() {
   # dump only the contents of the _postmeta table, matching a query looking for fields containing '.mp4'
-  mysqldump -t -u "${mysqldump_user}" -p"${mysqldump_pw}" "${mysqldump_db}" _postmeta --where="meta_value LIKE '%.mp4%' AND meta_key LIKE 'tm_video_file' OR meta_key LIKE 'tm_video_code'" > "${wd}/${data}/.dump.sql"
+  # extend to only match published posts metadata
+  # --single-transaction needed for locktables
+  mysqldump --single-transaction --no-create-info --user="${mysqldump_user}" --password="${mysqldump_pw}" "${mysqldump_db}" _postmeta \
+    --where="meta_value LIKE '%.mp4%' AND ( \
+      (meta_key LIKE 'tm_video_file' OR meta_key LIKE 'tm_video_code') AND \
+      EXISTS (SELECT 1 FROM _posts WHERE _posts.ID = _postmeta.post_id AND _posts.post_status = 'publish') \
+    )" > "${wd}/${data}/.dump.sql"
 }
 
 
