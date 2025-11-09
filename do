@@ -339,26 +339,17 @@ extractmetadata() {
   find "${wd}/${data}/" -maxdepth 1 -name ".mp4-*" -type f -delete
   find "${wd}/${data}/" -maxdepth 1 -name ".xml-*" -type f -delete
 
-  # run `ack` on the database dump to extract all references to content hosted at cdn.cmsdomain.com with or without HTTPS
+  # run `ack` on the database dump to extract all references to content hosted at cdn.cmsdomain.com
   printf 'Extracting CDN filenames... '
     # extract all CDN lines ending with an MP4 file
-    "${wd}/.inc/ack" --nofilter --output='$&' "https??://${cdn_url##*//}/download/\S+?.mp4" "${wd}/${data}/.dump.sql" > "${wd}/${data}/.mp4-matches"
-    # `sort` .mp4-matches list to remove duplicates, as the extraction may contain duplicate data from Wordpress post revisions not yet cleaned from the database
-    # this list also includes draft posts if lines CDN match as `mysql` query from database dump doesn't distinguish post status from _postmeta table.
+    "${wd}/.inc/ack" --nofilter --output='$&' "${cdn_url}/download/\S+?.mp4" "${wd}/${data}/.dump.sql" > "${wd}/${data}/.mp4-matches"
+    # `sort` .mp4-matches list to remove duplicates
     sort --unique "${wd}/${data}/.mp4-matches" > "${wd}/${data}/.mp4-matches-sorted"
   printf 'done.\n'
 
   printf 'Extracting CDN identifiers... '
     # extract identifiers from the list we build and sort for uniqueness above
-    "${wd}/.inc/ack" --nofilter --output='$&' "https??://${cdn_url##*//}/download/\S+?/" "${wd}/${data}/.mp4-matches-sorted" > "${wd}/${data}/.identifier-matches"
-    sort --unique "${wd}/${data}/.identifier-matches" > "${wd}/${data}/.identifier-matches-sorted"
-  printf 'done.\n'
-
-  # extract the identifier part of URLs
-  printf 'Building list of identifiers... '
-    # now use the sorted and unique identifier list to extract a list of just the identifiers
-    "${wd}/.inc/ack" --nofilter --output='$&' "(?<=/download/).*(?=\/)" "${wd}/${data}/.identifier-matches-sorted" > "${wd}/${data}/.identifier-matches-list"
-    # wash identifiers-temp file through `sort` with --unique to ensure duplicates that are referenced from playlists/series are removed
+    "${wd}/.inc/ack" --nofilter --output='$&' "(?<=${cdn_url}/download/)([^/]+)" "${wd}/${data}/.dump.sql" > "${wd}/${data}/.identifier-matches-list"
     sort --unique "${wd}/${data}/.identifier-matches-list" > "${wd}/${data}/.identifier-matches-list-sorted"
   printf 'done.\n'
 
