@@ -210,6 +210,11 @@ dumpdatabase() {
   # dump only the contents of the _postmeta table, matching a query looking for fields containing '.mp4'
   # extend to only match published posts metadata
   # --single-transaction needed for locktables
+  # raw SQL query is
+  # SELECT * FROM _postmeta WHERE meta_value LIKE '%.mp4%' AND (meta_key LIKE 'tm_video_file' OR meta_key LIKE 'tm_video_code') AND
+  # EXISTS (SELECT 1 FROM _posts WHERE _posts.ID = _postmeta.post_id AND _posts.post_status = 'publish');
+  # 'select 1' is used because not interested in returning data for the subquery, just if there's at least one row found that matches the condition
+  # and so that becomes 'true' for the 'exists' check. should only return one row anyway (as there should only ever be one record of 'publish' for each post)
   mysqldump --single-transaction --no-create-info --user="${mysqldump_user}" --password="${mysqldump_pw}" "${mysqldump_db}" _postmeta \
     --where="meta_value LIKE '%.mp4%' AND ( \
       (meta_key LIKE 'tm_video_file' OR meta_key LIKE 'tm_video_code') AND \
