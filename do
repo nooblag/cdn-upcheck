@@ -272,8 +272,8 @@ extractmetadata_engine(){
         # yes, metadata starts with { but now check if the metadata returned is empty, i.e. {}
         if read -r -n2 char < "${wd}/${data}/.${timestamp}-${identifier}-jq-metadata-tmp"; [[ $char = "{}" ]]; then
           # metadata is empty, use failsafe URL
-          echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
-          printf "\n%s" "  metadata empty: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
+          echo "${cdn_origin_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
+          printf "\n%s" "  metadata empty: ${cdn_origin_url}/download/${identifier}/${identifier}_meta.xml"
         else
           # metadata file isn't {} so try parse stuff now
           # parse to extract server name and dir, use `tr` to trim empty lines and blank space
@@ -284,8 +284,8 @@ extractmetadata_engine(){
           # check that jq extraction worked okay
           if [[ "${server}" == 'null' || "${dir}" == 'null' ]]; then
             # `jq` returned empty extraction so build a failsafe URL
-            echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
-            printf "\n%s" "  metadata null: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
+            echo "${cdn_origin_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
+            printf "\n%s" "  metadata null: ${cdn_origin_url}/download/${identifier}/${identifier}_meta.xml"
           elif [[ -n "${server}" && -n "${dir}" ]]; then
             # a server name and dir is available, so build the CDN URL
             # build server ID CDN url by replacing upstream CDN structure with local CDN to end up with cdnXXXXXX.cdn-upcheckdomain.tld URLs
@@ -296,20 +296,20 @@ extractmetadata_engine(){
               echo "https://${build_cdnurl}/${identifier}_meta.xml" >> "${2}"
             else
               # build_cdnurl was empty so build a failsafe URL
-              echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
-              printf "\n%s" "  metadata none: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
+              echo "${cdn_origin_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
+              printf "\n%s" "  metadata none: ${cdn_origin_url}/download/${identifier}/${identifier}_meta.xml"
             fi
           else
             # `jq` returned empty extraction so build a failsafe URL
-            echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
-            printf "\n%s" "  metadata failed: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
+            echo "${cdn_origin_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
+            printf "\n%s" "  metadata failed: ${cdn_origin_url}/download/${identifier}/${identifier}_meta.xml"
           fi
         # done working with metadata that isn't empty {}
         fi
       else
         # metadata returned is empty, fall back on cdn.cmsdomain.com default as failsafe
-        echo "${cdn_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
-        printf "\n%s" "  metadata invalid: ${cdn_url}/download/${identifier}/${identifier}_meta.xml"
+        echo "${cdn_origin_url}/download/${identifier}/${identifier}_meta.xml" >> "${2}"
+        printf "\n%s" "  metadata invalid: ${cdn_origin_url}/download/${identifier}/${identifier}_meta.xml"
       fi
 
   # on to the next identifier, advance the count
