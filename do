@@ -961,11 +961,11 @@ counter=1
 
 
 
-# to ease load on remote servers, sleep a random amount before we begin checks, at least 10 seconds, up to 4 minutes
-intwait="$(((RANDOM % 240)+10))"
+# to ease load on remote servers, sleep a random amount before we begin checks, at least 10 seconds, up to 45 min
+intwait="$(shuf --input-range 10-2700 --head-count 1)"
 wait="$(rendertimer "$intwait")"
 printf '\n\nWaiting %s before we begin... ' "${wait}"
-  sleep "$intwait"
+  sleep "${intwait}"
 printf 'done.\n'
 
 # write the date and time now
